@@ -2,7 +2,10 @@
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEV_JWT_SECRET = "dev-only-secret-change-me-in-production-0123456789"
 
 
 class Settings(BaseSettings):
@@ -19,7 +22,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     # JWT
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = DEV_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
 
@@ -28,6 +31,14 @@ class Settings(BaseSettings):
 
     # Куда складываем загруженные фото
     media_dir: str = "media"
+
+    @model_validator(mode="after")
+    def _check_prod_secret(self) -> "Settings":
+        if self.environment == "prod" and (
+            self.jwt_secret == DEV_JWT_SECRET or len(self.jwt_secret) < 32
+        ):
+            raise ValueError("В prod задайте JWT_SECRET длиной не меньше 32 символов")
+        return self
 
 
 @lru_cache
