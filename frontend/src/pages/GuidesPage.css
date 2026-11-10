@@ -1,0 +1,839 @@
+/* ==========================================================================
+   05 Службы и памятки (Десктоп 3149:1061 + Мобильная 3149:2782 и 3149:2895)
+   ========================================================================== */
+
+.guides-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--color-bg);
+}
+
+.guides-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 40px 48px 40px;
+  gap: 24px;
+}
+
+/* Шапка Десктопа */
+.guides-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+}
+
+.guides-topbar__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guides-topbar__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  color: var(--color-text);
+}
+
+.guides-topbar__subtitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+  color: var(--color-text-muted);
+}
+
+.guides-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guides-topbar__search {
+  width: 280px;
+  height: 44px;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guides-topbar__search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.guides-topbar__search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.guides-topbar__bell {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+}
+
+.guides-topbar__bell-dot {
+  position: absolute;
+  top: 7px;
+  left: 25px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-danger);
+  border: 2px solid var(--color-white);
+}
+
+.guides-topbar__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  border: none;
+  background-color: var(--color-action);
+  color: var(--color-white);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Ряд 5 карточек служб (Десктоп) */
+.guides-services-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.guides-service-card {
+  background-color: var(--color-white);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 6px rgba(29, 42, 55, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.guides-service-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guides-service-card__number {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 41px;
+  color: var(--color-text);
+}
+
+.guides-service-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.guides-service-card__name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 21px;
+  color: var(--color-text);
+}
+
+.guides-service-card__desc {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--color-text-muted);
+}
+
+.guides-service-card__call-btn {
+  width: 100%;
+  height: 40px;
+  border-radius: 12px;
+  background-color: #e5f2f7;
+  color: var(--color-action);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: auto;
+  transition: filter 0.15s ease;
+}
+
+.guides-service-card__call-btn:hover {
+  filter: brightness(0.96);
+}
+
+/* Нижний ряд: Список памяток + Детальная карточка */
+.guides-content-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  width: 100%;
+}
+
+.guides-list-card {
+  width: 360px;
+  flex-shrink: 0;
+  background-color: var(--color-white);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(29, 42, 55, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guides-list-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 6px 4px;
+}
+
+.guides-list-card__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 25px;
+  color: var(--color-text);
+}
+
+.guides-list-card__count {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--color-action);
+}
+
+.guides-list-card__items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guides-list-item {
+  width: 100%;
+  border: none;
+  background-color: transparent;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.guides-list-item:hover {
+  background-color: #f5f9fc;
+}
+
+.guides-list-item--active,
+.guides-list-item--active:hover {
+  background-color: #e5f2f7;
+}
+
+.guides-list-item__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background-color: var(--color-danger-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guides-list-item__icon--active {
+  background-color: var(--color-white);
+}
+
+.guides-list-item__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guides-list-item__name {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 21px;
+  color: var(--color-text);
+}
+
+.guides-list-item__steps {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  color: var(--color-text-muted);
+}
+
+/* Детальная карточка памятки (Десктоп) */
+.guides-detail-card {
+  flex: 1;
+  min-width: 0;
+  background-color: var(--color-white);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 2px 6px rgba(29, 42, 55, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.guides-detail-card__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.guides-detail-card__hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background-color: var(--color-danger-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guides-detail-card__titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guides-detail-card__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  color: var(--color-text);
+}
+
+.guides-detail-card__meta {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--color-text-muted);
+}
+
+.guides-detail-card__bookmark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.guides-detail-card__bookmark--active {
+  border-color: var(--color-action);
+  background-color: #e5f2f7;
+}
+
+.guides-detail-card__call-btn {
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 12px;
+  background-color: var(--color-danger);
+  color: var(--color-white);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 21px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.guides-detail-card__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+  width: 100%;
+}
+
+.guides-detail-card__steps {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.guides-detail-card__section-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 25px;
+  color: var(--color-text);
+}
+
+.guides-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.guides-step-row__num {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guides-step-row__text {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+  color: var(--color-text);
+}
+
+.guides-detail-card__donts {
+  width: 300px;
+  flex-shrink: 0;
+  background-color: var(--color-danger-light);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guides-detail-card__donts-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--color-text);
+}
+
+.guides-dont-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guides-dont-row__icon {
+  flex-shrink: 0;
+}
+
+.guides-dont-row__text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--color-text);
+}
+
+/* Мобильные блоки скрыты на десктопе */
+.guides-mobile-overview,
+.guides-mobile-detail {
+  display: none;
+}
+
+/* ==========================================================================
+   МОБИЛЬНАЯ ВЕРСИЯ (iPhone 16 · < 960px)
+   ========================================================================== */
+@media (max-width: 960px) {
+  .guides-topbar,
+  .guides-services-row,
+  .guides-content-row {
+    display: none;
+  }
+
+  .guides-main {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 16px 20px 108px 20px;
+    gap: 16px;
+  }
+
+  .guides-mobile-overview,
+  .guides-mobile-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .guides-mobile-header {
+    display: flex;
+    align-items: center;
+  }
+
+  .guides-mobile-title {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 31px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-search {
+    height: 52px;
+    background-color: var(--color-white);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .guides-mobile-search__input {
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 16px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-search__input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .guides-mobile-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .guides-mobile-section__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .guides-mobile-section__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 25px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-section__link {
+    border: none;
+    background: none;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--color-action);
+    cursor: pointer;
+  }
+
+  .guides-mobile-services-list {
+    background-color: var(--color-white);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(29, 42, 55, 0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .guides-mobile-service-row {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .guides-mobile-service-row--bordered {
+    border-top: 1px solid var(--color-border);
+  }
+
+  .guides-mobile-service-row__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .guides-mobile-service-row__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .guides-mobile-service-row__name {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 21px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-service-row__desc {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 17px;
+    color: var(--color-text-muted);
+  }
+
+  .guides-mobile-service-row__number {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 28px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-service-row__call {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background-color: var(--color-action);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    text-decoration: none;
+  }
+
+  .guides-mobile-cards {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .guides-mobile-cards::-webkit-scrollbar {
+    display: none;
+  }
+
+  .guides-mobile-cards--grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
+  .guides-mobile-card {
+    width: 150px;
+    flex-shrink: 0;
+    border: none;
+    background-color: var(--color-white);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 2px 6px rgba(29, 42, 55, 0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .guides-mobile-cards--grid .guides-mobile-card {
+    width: 100%;
+  }
+
+  .guides-mobile-card__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background-color: var(--color-danger-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .guides-mobile-card__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .guides-mobile-card__title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 21px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-card__steps {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 17px;
+    color: var(--color-text-muted);
+  }
+
+  /* Мобильный детальный экран памятки (06 Памятка: пожар) */
+  .guides-mobile-detail__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .guides-mobile-detail__back,
+  .guides-mobile-detail__bookmark {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .guides-mobile-detail__title {
+    margin: 0;
+    flex: 1;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 31px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-call-banner {
+    background-color: var(--color-danger-light);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .guides-mobile-call-banner__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background-color: var(--color-danger);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .guides-mobile-call-banner__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .guides-mobile-call-banner__title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 21px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-call-banner__sub {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+    color: var(--color-text-muted);
+  }
+
+  .guides-mobile-call-banner__btn {
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    background-color: var(--color-danger);
+    color: var(--color-white);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 21px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .guides-mobile-detail__section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .guides-mobile-detail__section-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 25px;
+    color: var(--color-text);
+  }
+
+  .guides-mobile-detail__card {
+    background-color: var(--color-white);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(29, 42, 55, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+}

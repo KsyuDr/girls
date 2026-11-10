@@ -1,0 +1,567 @@
+.reg-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--color-bg);
+}
+
+/* ================= ЛЕВАЯ КОЛОНКА HERO (ДЕСКТОП) ================= */
+.reg-hero {
+  position: relative;
+  width: 680px;
+  min-width: 560px;
+  max-width: 45vw;
+  min-height: 100vh;
+  background-color: var(--color-primary);
+  padding: 56px 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.reg-hero__ellipse {
+  position: absolute;
+  border-radius: 50%;
+  background-color: rgba(0, 201, 183, 0.08);
+  pointer-events: none;
+}
+
+.reg-hero__ellipse--top {
+  width: 300px;
+  height: 300px;
+  left: 470px;
+  top: -120px;
+}
+
+.reg-hero__ellipse--bottom {
+  width: 520px;
+  height: 520px;
+  left: 360px;
+  top: 560px;
+}
+
+.reg-hero__brand {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reg-hero__logo-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reg-hero__brand-title {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  color: var(--color-white);
+  white-space: nowrap;
+}
+
+.reg-hero__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 520px;
+}
+
+.reg-hero__heading {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 58px;
+  color: var(--color-white);
+  letter-spacing: -0.01em;
+}
+
+.reg-hero__subtitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 25px;
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 500px;
+}
+
+.reg-hero__features {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.reg-hero__feature {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.reg-hero__feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background-color: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reg-hero__feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reg-hero__feature-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--color-white);
+}
+
+.reg-hero__feature-desc {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.reg-hero__footer {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ================= ПРАВАЯ ОБЛАСТЬ С ФОРМОЙ ================= */
+.reg-form-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px 24px;
+  min-height: 100vh;
+}
+
+.reg-card {
+  width: 100%;
+  max-width: 480px;
+  background-color: var(--color-white);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0px 12px 24px rgba(29, 42, 55, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.reg-mobile-header {
+  display: none;
+}
+
+.reg-card__title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 38px;
+  color: var(--color-text);
+}
+
+.reg-card__subtitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+  color: var(--color-text-muted);
+}
+
+/* ================= ПОЛЯ ВВОДА ================= */
+.reg-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.reg-field-label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--color-text);
+}
+
+.reg-field-control {
+  height: 52px;
+  width: 100%;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.reg-field-control:focus-within,
+.reg-field-control--active {
+  border: 2px solid var(--color-action);
+  padding: 0 15px;
+}
+
+.reg-field-control--error {
+  border: 2px solid var(--color-danger);
+  padding: 0 15px;
+}
+
+.reg-field-icon {
+  flex-shrink: 0;
+}
+
+.reg-input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--color-text);
+  padding: 0;
+}
+
+.reg-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.reg-field-control--select {
+  position: relative;
+}
+
+.reg-select {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--color-text);
+  cursor: pointer;
+  padding-right: 28px;
+}
+
+.reg-select-chevron {
+  position: absolute;
+  right: 16px;
+  pointer-events: none;
+}
+
+.reg-field-error {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--color-danger);
+}
+
+/* ================= ДОСТУП К ГЕОЛОКАЦИИ ================= */
+.reg-geo-box {
+  width: 100%;
+  background-color: var(--color-bg);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reg-geo-box__icon {
+  flex-shrink: 0;
+}
+
+.reg-geo-box__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reg-geo-box__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.reg-geo-box__desc {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  color: var(--color-text-muted);
+}
+
+.reg-geo-box__desc-mobile {
+  display: none;
+}
+
+.reg-toggle-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.reg-toggle {
+  display: block;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background-color: #cbd5e1;
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.reg-toggle--on {
+  background-color: var(--color-accent);
+}
+
+.reg-toggle__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--color-white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.reg-toggle--on .reg-toggle__thumb {
+  transform: translateX(18px);
+}
+
+.reg-toggle-input:focus-visible + .reg-toggle {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* ================= КНОПКА И ПОДВАЛ КАРТОЧКИ ================= */
+.reg-submit-btn {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background-color: var(--color-action);
+  color: var(--color-white);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 22px;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.reg-submit-btn:hover:not(:disabled) {
+  background-color: #006b8e;
+}
+
+.reg-submit-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.reg-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.reg-submit-btn__mobile {
+  display: none;
+}
+
+.reg-legal {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.reg-login-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.reg-login-row__prompt {
+  color: var(--color-text-muted);
+}
+
+.reg-login-row__link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--color-action);
+  cursor: pointer;
+}
+
+.reg-login-row__link:hover {
+  text-decoration: underline;
+}
+
+/* ================= ПЛАШКА 112 ================= */
+.reg-hint-112 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background-color: var(--color-danger-light);
+  border-radius: 100px;
+  padding: 10px 18px;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+
+.reg-hint-112:hover {
+  transform: translateY(-1px);
+}
+
+.reg-hint-112__text {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--color-danger);
+}
+
+/* ================= МОБИЛЬНАЯ ВЕРСИЯ (iPhone 16 · < 960px) ================= */
+@media (max-width: 960px) {
+  .reg-hero {
+    display: none;
+  }
+
+  .reg-form-area {
+    justify-content: flex-start;
+    padding: 24px 20px 34px;
+    background-color: var(--color-bg);
+  }
+
+  .reg-card {
+    max-width: 393px;
+    background-color: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    gap: 14px;
+  }
+
+  .reg-card__title,
+  .reg-card__subtitle {
+    display: none;
+  }
+
+  .reg-mobile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    width: 100%;
+  }
+
+  .reg-mobile-header__icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background-color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .reg-mobile-header__title {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 34px;
+    color: var(--color-text);
+  }
+
+  .reg-mobile-header__subtitle {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 21px;
+    color: var(--color-text-muted);
+  }
+
+  .reg-mobile-header__step {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 18px;
+    color: var(--color-action);
+  }
+
+  .reg-geo-box {
+    background-color: var(--color-white);
+    border-radius: 16px;
+    box-shadow: 0px 2px 6px rgba(29, 42, 55, 0.06);
+  }
+
+  .reg-geo-box__desc-desktop {
+    display: none;
+  }
+
+  .reg-geo-box__desc-mobile {
+    display: inline;
+  }
+
+  .reg-submit-btn__desktop {
+    display: none;
+  }
+
+  .reg-submit-btn__mobile {
+    display: inline;
+  }
+
+  .reg-hint-112 {
+    display: none;
+  }
+}

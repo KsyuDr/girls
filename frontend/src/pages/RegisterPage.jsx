@@ -1,0 +1,404 @@
+import { useState } from 'react';
+import {
+  ShieldCheck,
+  Siren,
+  Bell,
+  Map,
+  Phone,
+  MapPin,
+  ChevronDown,
+  LocateFixed,
+} from 'lucide-react';
+import { CITIES } from '../mock/data';
+import { registerUser } from '../services/api';
+import './RegisterPage.css';
+
+export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState(initialUser?.city || 'Москва');
+  const [geolocationEnabled, setGeolocationEnabled] = useState(
+    initialUser?.geolocationEnabled ?? true
+  );
+  const [activeField, setActiveField] = useState('phone');
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validateField = (field, value) => {
+    if (field === 'name') {
+      if (!value.trim()) return 'Пожалуйста, укажите ваше имя';
+    }
+    if (field === 'phone') {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length < 10) return 'Введите корректный номер телефона';
+    }
+    return '';
+  };
+
+  const handleBlur = (field, value) => {
+    const errorMsg = validateField(field, value);
+    if (errorMsg) {
+      setErrors((prev) => ({ ...prev, [field]: errorMsg }));
+    }
+  };
+
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    setName(val);
+    if (errors.name) {
+      setErrors((prev) => ({ ...prev, name: '' }));
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    const val = e.target.value;
+    setPhone(val);
+    if (errors.phone) {
+      setErrors((prev) => ({ ...prev, phone: '' }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const nameError = validateField('name', name);
+    const phoneError = validateField('phone', phone);
+
+    if (nameError || phoneError) {
+      setErrors({ name: nameError, phone: phoneError });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await registerUser({
+        name,
+        phone,
+        city,
+        geolocationEnabled,
+      });
+      if (onSuccess) {
+        onSuccess(result.user);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="reg-page" data-node-id="3149:14">
+      {/* Левая панель Hero (Десктоп MacBook Pro 14") */}
+      <aside className="reg-hero" data-node-id="3149:61">
+        <div className="reg-hero__ellipse reg-hero__ellipse--top" aria-hidden="true" />
+        <div className="reg-hero__ellipse reg-hero__ellipse--bottom" aria-hidden="true" />
+
+        <div className="reg-hero__brand" data-node-id="3149:21">
+          <div className="reg-hero__logo-box" data-node-id="3149:19">
+            <ShieldCheck size={24} color="#003C54" strokeWidth={2.2} />
+          </div>
+          <span className="reg-hero__brand-title" data-node-id="3149:20">
+            Безопасный город
+          </span>
+        </div>
+
+        <div className="reg-hero__content" data-node-id="3149:59">
+          <h1 className="reg-hero__heading" data-node-id="3149:22">
+            Помощь рядом, когда она нужна
+          </h1>
+          <p className="reg-hero__subtitle" data-node-id="3149:23">
+            Экстренный вызов, оповещения городских служб и карта опасных мест — в одном приложении
+          </p>
+
+          <div className="reg-hero__features" data-node-id="3149:58">
+            <div className="reg-hero__feature" data-node-id="3149:38">
+              <div className="reg-hero__feature-icon" data-node-id="3149:34">
+                <Siren size={24} color="#00C9B7" strokeWidth={2} />
+              </div>
+              <div className="reg-hero__feature-text">
+                <span className="reg-hero__feature-title" data-node-id="3149:35">
+                  SOS одним нажатием
+                </span>
+                <span className="reg-hero__feature-desc" data-node-id="3149:36">
+                  Координаты уходят в 112 и близким
+                </span>
+              </div>
+            </div>
+
+            <div className="reg-hero__feature" data-node-id="3149:47">
+              <div className="reg-hero__feature-icon" data-node-id="3149:43">
+                <Bell size={24} color="#00C9B7" strokeWidth={2} />
+              </div>
+              <div className="reg-hero__feature-text">
+                <span className="reg-hero__feature-title" data-node-id="3149:44">
+                  Оповещения о ЧС
+                </span>
+                <span className="reg-hero__feature-desc" data-node-id="3149:45">
+                  МЧС и службы города в реальном времени
+                </span>
+              </div>
+            </div>
+
+            <div className="reg-hero__feature" data-node-id="3149:57">
+              <div className="reg-hero__feature-icon" data-node-id="3149:53">
+                <Map size={24} color="#00C9B7" strokeWidth={2} />
+              </div>
+              <div className="reg-hero__feature-text">
+                <span className="reg-hero__feature-title" data-node-id="3149:54">
+                  Карта безопасности
+                </span>
+                <span className="reg-hero__feature-desc" data-node-id="3149:55">
+                  Опасные места и пункты помощи рядом
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="reg-hero__footer" data-node-id="3149:60">
+          Работает во всех районах города
+        </p>
+      </aside>
+
+      {/* Правая область с формой регистрации (Десктоп + Мобильная версия iPhone 16) */}
+      <main className="reg-form-area" data-node-id="3149:114">
+        <form
+          className="reg-card"
+          method="post"
+          action="/api/auth/register"
+          onSubmit={handleSubmit}
+          noValidate
+          data-node-id="3149:108"
+        >
+          {/* Мобильная шапка (iPhone 16 / 01 Регистрация) */}
+          <div className="reg-mobile-header">
+            <div className="reg-mobile-header__icon" data-node-id="3149:2289">
+              <ShieldCheck size={32} color="#00C9B7" strokeWidth={2.2} />
+            </div>
+            <h1 className="reg-mobile-header__title" data-node-id="3149:2290">
+              Безопасный город
+            </h1>
+            <p className="reg-mobile-header__subtitle" data-node-id="3149:2291">
+              Экстренная помощь, оповещения и карта опасных мест вашего города
+            </p>
+            <p className="reg-mobile-header__step" data-node-id="3149:2292">
+              Шаг 1 из 2 · Регистрация
+            </p>
+          </div>
+
+          {/* Заголовок карточки на десктопе */}
+          <h2 className="reg-card__title" data-node-id="3149:64">
+            Регистрация
+          </h2>
+          <p className="reg-card__subtitle" data-node-id="3149:65">
+            Шаг 1 из 2 · Введите данные, мы пришлём код по SMS
+          </p>
+
+          {/* Поле: Имя */}
+          <div className="reg-field-group" data-node-id="3149:69">
+            <label htmlFor="reg-name" className="reg-field-label" data-node-id="3149:68">
+              Имя
+            </label>
+            <div
+              className={`reg-field-control ${
+                activeField === 'name' ? 'reg-field-control--active' : ''
+              } ${errors.name ? 'reg-field-control--error' : ''}`}
+              data-node-id="3149:67"
+            >
+              <input
+                id="reg-name"
+                name="name"
+                type="text"
+                autoComplete="name"
+                enterKeyHint="next"
+                required
+                value={name}
+                onFocus={() => setActiveField('name')}
+                onBlur={(e) => handleBlur('name', e.target.value)}
+                onChange={handleNameChange}
+                placeholder="Введите ваше Имя и Фамилию"
+                className="reg-input"
+                aria-invalid={Boolean(errors.name)}
+                aria-describedby={errors.name ? 'reg-name-error' : undefined}
+              />
+            </div>
+            {errors.name && (
+              <span id="reg-name-error" className="reg-field-error" role="alert">
+                {errors.name}
+              </span>
+            )}
+          </div>
+
+          {/* Поле: Номер телефона */}
+          <div className="reg-field-group" data-node-id="3149:76">
+            <label htmlFor="reg-phone" className="reg-field-label" data-node-id="3149:75">
+              Номер телефона
+            </label>
+            <div
+              className={`reg-field-control ${
+                activeField === 'phone' ? 'reg-field-control--active' : ''
+              } ${errors.phone ? 'reg-field-control--error' : ''}`}
+              data-node-id="3149:74"
+            >
+              <Phone
+                size={20}
+                color="#6B7A89"
+                strokeWidth={1.8}
+                className="reg-field-icon"
+                aria-hidden="true"
+              />
+              <input
+                id="reg-phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                enterKeyHint="next"
+                required
+                value={phone}
+                onFocus={() => setActiveField('phone')}
+                onBlur={(e) => handleBlur('phone', e.target.value)}
+                onChange={handlePhoneChange}
+                placeholder="+7 (900) 000-00-00"
+                className="reg-input"
+                aria-invalid={Boolean(errors.phone)}
+                aria-describedby={errors.phone ? 'reg-phone-error' : undefined}
+              />
+            </div>
+            {errors.phone && (
+              <span id="reg-phone-error" className="reg-field-error" role="alert">
+                {errors.phone}
+              </span>
+            )}
+          </div>
+
+          {/* Поле: Город */}
+          <div className="reg-field-group" data-node-id="3149:87">
+            <label htmlFor="reg-city" className="reg-field-label" data-node-id="3149:86">
+              Город
+            </label>
+            <div
+              className={`reg-field-control reg-field-control--select ${
+                activeField === 'city' ? 'reg-field-control--active' : ''
+              }`}
+              data-node-id="3149:85"
+            >
+              <MapPin
+                size={20}
+                color="#6B7A89"
+                strokeWidth={1.8}
+                className="reg-field-icon"
+                aria-hidden="true"
+              />
+              <select
+                id="reg-city"
+                name="city"
+                autoComplete="address-level2"
+                value={city}
+                onFocus={() => setActiveField('city')}
+                onChange={(e) => setCity(e.target.value)}
+                className="reg-select"
+              >
+                {CITIES.map((cityName) => (
+                  <option key={cityName} value={cityName}>
+                    {cityName}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={20}
+                color="#6B7A89"
+                strokeWidth={1.8}
+                className="reg-select-chevron"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+
+          {/* Доступ к геолокации */}
+          <div className="reg-geo-box" data-node-id="3149:101">
+            <LocateFixed
+              size={22}
+              color="#007DA5"
+              strokeWidth={2}
+              className="reg-geo-box__icon"
+              aria-hidden="true"
+            />
+            <div className="reg-geo-box__text" data-node-id="3149:98">
+              <label htmlFor="reg-geo-toggle" className="reg-geo-box__title" data-node-id="3149:96">
+                Доступ к геолокации
+              </label>
+              <span id="reg-geo-desc" className="reg-geo-box__desc" data-node-id="3149:97">
+                <span className="reg-geo-box__desc-desktop">
+                  Нужен, чтобы передавать местоположение при SOS
+                </span>
+                <span className="reg-geo-box__desc-mobile">
+                  Нужен, чтобы передавать ваше местоположение при SOS
+                </span>
+              </span>
+            </div>
+            <div className="reg-toggle-wrapper" data-node-id="3149:99">
+              <input
+                id="reg-geo-toggle"
+                name="geolocationEnabled"
+                type="checkbox"
+                checked={geolocationEnabled}
+                onChange={(e) => setGeolocationEnabled(e.target.checked)}
+                aria-describedby="reg-geo-desc"
+                className="visually-hidden reg-toggle-input"
+              />
+              <label
+                htmlFor="reg-geo-toggle"
+                className={`reg-toggle ${geolocationEnabled ? 'reg-toggle--on' : ''}`}
+              >
+                <span className="reg-toggle__thumb" />
+              </label>
+            </div>
+          </div>
+
+          {/* Кнопка отправки */}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="reg-submit-btn"
+            data-node-id="3149:103"
+          >
+            <span className="reg-submit-btn__desktop">
+              {isSubmitting ? 'Отправка кода...' : 'Получить код'}
+            </span>
+            <span className="reg-submit-btn__mobile">
+              {isSubmitting ? 'Отправка кода...' : 'Получить код по SMS'}
+            </span>
+          </button>
+
+          {/* Юридический текст */}
+          <p className="reg-legal" data-node-id="3149:104">
+            Нажимая кнопку, вы соглашаетесь с условиями использования и обработкой персональных
+            данных
+          </p>
+
+          {/* Уже есть аккаунт? Войти */}
+          <div className="reg-login-row" data-node-id="3149:107">
+            <span className="reg-login-row__prompt" data-node-id="3149:105">
+              Уже есть аккаунт?
+            </span>
+            <button
+              type="button"
+              onClick={onGoToLogin}
+              className="reg-login-row__link"
+              data-node-id="3149:106"
+            >
+              Войти
+            </button>
+          </div>
+        </form>
+
+        {/* Плашка экстренного вызова 112 без регистрации */}
+        <a href="tel:112" className="reg-hint-112" data-node-id="3149:113">
+          <Phone size={18} color="#ED0536" strokeWidth={2} aria-hidden="true" />
+          <span className="reg-hint-112__text" data-node-id="3149:112">
+            Нужна помощь прямо сейчас? Звоните 112 — без регистрации
+          </span>
+        </a>
+      </main>
+    </div>
+  );
+}

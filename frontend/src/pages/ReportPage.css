@@ -1,0 +1,766 @@
+/* ==========================================================================
+   08 СООБЩИТЬ О ПРОИСШЕСТВИИ (Десктоп 3149:1851 + Мобильная версия 3149:3344)
+   ========================================================================== */
+
+.report-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f5f7fa;
+  color: #1d2a37;
+  font-family: 'Manrope', sans-serif;
+}
+
+.report-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 40px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1248px;
+  box-sizing: border-box;
+}
+
+/* Шапка Десктопа */
+.report-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.report-topbar__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-topbar__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  color: #1d2a37;
+}
+
+.report-topbar__subtitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+  color: #6b7a89;
+}
+
+.report-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.report-topbar__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 280px;
+  height: 44px;
+  padding: 0 14px;
+  background-color: #ffffff;
+  border: 1px solid #e3e8ef;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.report-topbar__search-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1d2a37;
+}
+
+.report-topbar__search-input::placeholder {
+  color: #6b7a89;
+}
+
+.report-topbar__bell {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e3e8ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease;
+}
+
+.report-topbar__bell:hover {
+  background-color: #edf2f7;
+}
+
+.report-topbar__bell-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #ed0536;
+  border: 2px solid #ffffff;
+  box-sizing: border-box;
+}
+
+.report-topbar__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #003c54;
+  color: #ffffff;
+  border: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.report-mobile-header {
+  display: none;
+}
+
+/* Основная строка контента */
+.report-content-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+/* Форма слева (720px) */
+.report-form-card {
+  width: 720px;
+  flex-shrink: 0;
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0, 60, 84, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.report-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background-color: #e0f7f4;
+  border: 1px solid #00c9b7;
+  border-radius: 12px;
+}
+
+.report-success-banner__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.report-success-banner__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: #1d2a37;
+}
+
+.report-success-banner__body strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.report-success-banner__link {
+  background-color: #003c54;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.report-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-section__label {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  color: #1d2a37;
+}
+
+.report-types-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.report-type-tile {
+  height: 82px;
+  border-radius: 12px;
+  background-color: #f5f7fa;
+  border: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #1d2a37;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.report-type-tile:hover {
+  background-color: #edf4f8;
+}
+
+.report-type-tile--active {
+  background-color: #e5f2f7;
+  border-color: #007da5;
+  font-weight: 700;
+}
+
+/* Поля ввода */
+.report-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-field__label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #1d2a37;
+}
+
+.report-address-input-wrap {
+  height: 52px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e3e8ef;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+.report-address-input-wrap:focus-within {
+  border-color: #007da5;
+}
+
+.report-address-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  color: #1d2a37;
+}
+
+.report-address-input::placeholder {
+  color: #6b7a89;
+}
+
+.report-address-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #6b7a89;
+}
+
+.report-address-hint__geo-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: #6b7a89;
+  cursor: pointer;
+}
+
+.report-address-hint__geo-btn:hover {
+  color: #1d2a37;
+  text-decoration: underline;
+}
+
+.report-address-hint__map-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #007da5;
+  cursor: pointer;
+}
+
+.report-address-hint__map-link:hover {
+  text-decoration: underline;
+}
+
+.report-textarea {
+  min-height: 120px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e3e8ef;
+  padding: 14px 16px;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 22px;
+  color: #1d2a37;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.report-textarea:focus {
+  border-color: #007da5;
+}
+
+.report-textarea::placeholder {
+  color: #6b7a89;
+}
+
+/* Фото или видео */
+.report-file-hidden {
+  display: none;
+}
+
+.report-photos-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.report-photo-slot {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  background-color: #e5ebf0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.report-photo-slot__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.report-photo-slot__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: rgba(29, 42, 55, 0.75);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.report-photo-add {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  background-color: #f5f7fa;
+  border: 1.5px dashed #007da5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #007da5;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.report-photo-add:hover {
+  background-color: #e5f2f7;
+}
+
+/* Анонимная отправка */
+.report-anon-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background-color: #f5f7fa;
+}
+
+.report-anon-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.report-anon-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
+  color: #1d2a37;
+}
+
+.report-anon-card__subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #6b7a89;
+}
+
+.report-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 100px;
+  background-color: #d5dde5;
+  border: none;
+  padding: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease;
+}
+
+.report-switch--on {
+  background-color: #008f82;
+}
+
+.report-switch__thumb {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.report-switch--on .report-switch__thumb {
+  transform: translateX(18px);
+}
+
+/* Кнопки действий */
+.report-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.report-submit-btn {
+  flex: 1;
+  height: 52px;
+  border-radius: 12px;
+  background-color: #007da5;
+  color: #ffffff;
+  border: none;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.report-submit-btn:hover {
+  background-color: #006687;
+}
+
+.report-cancel-btn {
+  height: 52px;
+  padding: 0 24px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e3e8ef;
+  color: #007da5;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.report-cancel-btn:hover {
+  background-color: #f5f7fa;
+}
+
+/* Правая колонка (Десктоп) */
+.report-side-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.report-steps-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 60, 84, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-steps-card__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #1d2a37;
+}
+
+.report-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.report-step-row__num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #e5f2f7;
+  color: #007da5;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.report-step-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.report-step-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
+  color: #1d2a37;
+}
+
+.report-step-row__subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #6b7a89;
+}
+
+.report-danger-card {
+  background-color: #fde7ec;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-danger-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.report-danger-card__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #ed0536;
+}
+
+.report-danger-card__desc {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: #1d2a37;
+}
+
+.report-danger-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.report-danger-card__sos-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #ed0536;
+  color: #ffffff;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-danger-card__call-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  color: #007da5;
+  border: 1px solid #e3e8ef;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ (iPhone 16 / 09 Сообщить о происшествии · 3149:3344)
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .report-main {
+    padding: 16px 20px 104px;
+    gap: 14px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .report-topbar,
+  .report-side-col,
+  .report-cancel-btn,
+  .report-address-hint {
+    display: none;
+  }
+
+  .report-mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .report-mobile-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background-color: #ffffff;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 60, 84, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .report-mobile-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 26px;
+    color: #1d2a37;
+  }
+
+  .report-form-card {
+    width: 100%;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+    gap: 14px;
+  }
+
+  .report-types-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .report-type-tile {
+    background-color: #ffffff;
+    height: 76px;
+    box-shadow: 0 2px 6px rgba(0, 60, 84, 0.05);
+  }
+
+  .report-type-tile--active {
+    background-color: #e5f2f7;
+  }
+
+  .report-textarea {
+    min-height: 92px;
+  }
+
+  .report-photo-slot,
+  .report-photo-add {
+    width: 72px;
+    height: 72px;
+  }
+
+  .report-anon-card {
+    background-color: #ffffff;
+    padding: 14px;
+    box-shadow: 0 2px 8px rgba(0, 60, 84, 0.06);
+  }
+}

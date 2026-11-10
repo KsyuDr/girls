@@ -1,0 +1,928 @@
+.sos-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--color-bg);
+}
+
+/* ================= БОКОВОЕ МЕНЮ (ДЕСКТОП) ================= */
+.sos-sidebar {
+  width: 264px;
+  min-height: 100vh;
+  background-color: var(--color-primary);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sos-sidebar__top {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sos-sidebar__logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sos-sidebar__logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background-color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sos-sidebar__logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.sos-sidebar__brand {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--color-white);
+  white-space: nowrap;
+}
+
+.sos-sidebar__city {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sos-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sos-sidebar__nav-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 21px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.sos-sidebar__nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--color-white);
+}
+
+.sos-sidebar__nav-item--active {
+  background-color: rgba(255, 255, 255, 0.12);
+  font-weight: 700;
+  color: var(--color-white);
+}
+
+.sos-sidebar__bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sos-sidebar__sos-btn {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background-color: var(--color-danger);
+  color: var(--color-white);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sos-sidebar__profile {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sos-sidebar__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background-color: var(--color-action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-white);
+  flex-shrink: 0;
+}
+
+.sos-sidebar__profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sos-sidebar__profile-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--color-white);
+}
+
+.sos-sidebar__profile-phone {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ================= ОСНОВНАЯ ОБЛАСТЬ (ДЕСКТОП) ================= */
+.sos-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1248px;
+}
+
+.sos-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.sos-topbar__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sos-topbar__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  color: var(--color-text);
+}
+
+.sos-topbar__subtitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+  color: var(--color-text-muted);
+}
+
+.sos-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sos-topbar__search {
+  width: 280px;
+  height: 44px;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sos-topbar__search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.sos-topbar__search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.sos-topbar__bell-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sos-topbar__bell-dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--color-danger);
+  border: 1.5px solid var(--color-white);
+}
+
+.sos-topbar__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  border: none;
+  background-color: var(--color-action);
+  color: var(--color-white);
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sos-mobile-status {
+  display: none;
+}
+
+/* ================= КРАСНЫЙ БАННЕР SOS ================= */
+.sos-banner {
+  width: 100%;
+  background-color: var(--color-danger);
+  border-radius: 20px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.sos-banner__rings {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sos-banner__ring {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.sos-banner__ring--outer {
+  width: 96px;
+  height: 96px;
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.sos-banner__ring--middle {
+  width: 75px;
+  height: 75px;
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+.sos-banner__ring--inner {
+  width: 54px;
+  height: 54px;
+  background-color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.sos-banner__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sos-banner__title-desktop {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  color: var(--color-white);
+}
+
+.sos-banner__title-mobile {
+  display: none;
+}
+
+.sos-banner__desc-desktop {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sos-banner__desc-mobile {
+  display: none;
+}
+
+.sos-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.sos-banner__call-btn {
+  height: 52px;
+  background-color: var(--color-white);
+  border-radius: 12px;
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-danger);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.1s ease;
+}
+
+.sos-banner__call-btn:hover {
+  transform: translateY(-1px);
+}
+
+.sos-banner__safe-btn {
+  height: 52px;
+  background: transparent;
+  border: 1.5px solid var(--color-white);
+  border-radius: 12px;
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-white);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.sos-banner__safe-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ================= СЕТКА КАРТЫ И СТАТУСОВ ================= */
+.sos-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  width: 100%;
+}
+
+.sos-map-card {
+  width: 744px;
+  max-width: 62%;
+  flex-shrink: 0;
+  background-color: var(--color-white);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0px 2px 6px rgba(29, 42, 55, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sos-card-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sos-card-header__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 25px;
+  color: var(--color-text);
+}
+
+.sos-badge {
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.sos-badge--teal {
+  background-color: #e0f7f4;
+  color: #008f82;
+}
+
+.sos-badge--gray {
+  background-color: #edf1f5;
+  color: var(--color-text-muted);
+}
+
+.sos-badge--blue {
+  background-color: #e5f2f7;
+  color: var(--color-action);
+}
+
+.sos-badge__mobile {
+  display: none;
+}
+
+/* ================= КАРТА МЕСТОПОЛОЖЕНИЯ ================= */
+.sos-map-canvas {
+  position: relative;
+  width: 100%;
+  height: 460px;
+  background-color: #eef2f5;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sos-map-blocks {
+  position: absolute;
+  inset: -20px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(5, 86px);
+  gap: 16px;
+}
+
+.sos-map-block {
+  background-color: #e0e6ec;
+  border-radius: 6px;
+}
+
+.sos-map-block--park {
+  background-color: #cdefe7;
+}
+
+.sos-map-road {
+  position: absolute;
+  background-color: var(--color-white);
+  pointer-events: none;
+}
+
+.sos-map-road--h {
+  width: 150%;
+  height: 14px;
+  left: -25%;
+  top: 72%;
+  transform: rotate(12deg);
+}
+
+.sos-map-road--v {
+  width: 14px;
+  height: 150%;
+  left: 48%;
+  top: -25%;
+  transform: rotate(12deg);
+}
+
+.sos-map-river {
+  position: absolute;
+  width: 150%;
+  height: 44px;
+  left: -25%;
+  top: 60%;
+  background-color: #c6e4ef;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+.sos-map-pin {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 3px solid var(--color-white);
+  box-shadow: 0px 4px 6px rgba(29, 42, 55, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.sos-map-pin--hospital {
+  background-color: #008f82;
+  left: 75%;
+  top: 26%;
+}
+
+.sos-map-pin--police {
+  background-color: var(--color-action);
+  left: 19%;
+  top: 66%;
+}
+
+.sos-map-user-marker {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.sos-map-user-marker__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: rgba(0, 125, 165, 0.2);
+}
+
+.sos-map-user-marker__dot {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--color-action);
+  border: 3.5px solid var(--color-white);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.sos-map-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.sos-map-footer__mobile {
+  display: none;
+}
+
+/* ================= ПРАВАЯ КОЛОНКА (КОМУ ОТПРАВЛЕНО + СОВЕТЫ) ================= */
+.sos-side {
+  flex: 1;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sos-recipients-card,
+.sos-tips-card {
+  width: 100%;
+  background-color: var(--color-white);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0px 2px 6px rgba(29, 42, 55, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sos-recipients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sos-recipients-list--mobile {
+  display: none;
+}
+
+.sos-recipient-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.sos-recipient-row__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-white);
+  flex-shrink: 0;
+}
+
+.sos-recipient-row__avatar--sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  font-size: 13px;
+}
+
+.sos-recipient-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sos-recipient-row__name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
+  color: var(--color-text);
+}
+
+.sos-recipient-row__name--flex {
+  flex: 1;
+}
+
+.sos-recipient-row__sub {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 17px;
+  color: var(--color-text-muted);
+}
+
+.sos-tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sos-tip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sos-tip-row__icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: #e0f7f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sos-tip-row__text {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--color-text);
+}
+
+.sos-mobile-actions {
+  display: none;
+}
+
+/* ================= МОБИЛЬНАЯ ВЕРСИЯ (iPhone 16 · < 960px) ================= */
+@media (max-width: 960px) {
+  .sos-page {
+    background-color: var(--color-danger);
+  }
+
+  .sos-sidebar,
+  .sos-topbar,
+  .sos-tips-card,
+  .sos-banner__actions,
+  .sos-map-pin {
+    display: none;
+  }
+
+  .sos-main {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 20px 20px 40px;
+    gap: 14px;
+  }
+
+  .sos-mobile-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .sos-mobile-status__pill {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 100px;
+    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-white);
+  }
+
+  .sos-mobile-status__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-white);
+  }
+
+  .sos-mobile-status__timer {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--color-white);
+  }
+
+  .sos-banner {
+    flex-direction: column;
+    padding: 4px 0 8px;
+    gap: 8px;
+    text-align: center;
+    background: transparent;
+  }
+
+  .sos-banner__rings {
+    width: 100px;
+    height: 100px;
+  }
+
+  .sos-banner__ring--outer {
+    width: 100px;
+    height: 100px;
+  }
+
+  .sos-banner__ring--middle {
+    width: 78px;
+    height: 78px;
+  }
+
+  .sos-banner__ring--inner {
+    width: 56px;
+    height: 56px;
+  }
+
+  .sos-banner__title-desktop,
+  .sos-banner__desc-desktop {
+    display: none;
+  }
+
+  .sos-banner__title-mobile {
+    display: block;
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 31px;
+    color: var(--color-white);
+  }
+
+  .sos-banner__desc-mobile {
+    display: block;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 21px;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .sos-grid {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sos-map-card,
+  .sos-recipients-card {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px;
+    gap: 10px;
+  }
+
+  .sos-side {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sos-card-header__title {
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .sos-badge__desktop {
+    display: none;
+  }
+
+  .sos-badge__mobile {
+    display: inline;
+  }
+
+  .sos-map-canvas {
+    height: 84px;
+  }
+
+  .sos-map-river {
+    top: 25%;
+  }
+
+  .sos-map-footer__desktop {
+    display: none;
+  }
+
+  .sos-map-footer__mobile {
+    display: inline;
+    font-size: 13px;
+  }
+
+  .sos-recipients-list--desktop {
+    display: none;
+  }
+
+  .sos-recipients-list--mobile {
+    display: flex;
+    gap: 10px;
+  }
+
+  .sos-mobile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    margin-top: 2px;
+  }
+
+  .sos-mobile-actions__call-btn {
+    width: 100%;
+    height: 52px;
+    background-color: var(--color-white);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-danger);
+    text-decoration: none;
+  }
+
+  .sos-mobile-actions__cancel-btn {
+    width: 100%;
+    height: 52px;
+    background: transparent;
+    border: 1.5px solid var(--color-white);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-white);
+    cursor: pointer;
+  }
+}
