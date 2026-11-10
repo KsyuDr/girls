@@ -65,9 +65,13 @@
 | Метод и путь | Доступ | Тело запроса | Ответ |
 |---|---|---|---|
 | `GET /contacts` | вход | — | список контактов |
-| `POST /contacts` | вход | `{name, relation, phone, receivesSos}` | контакт; 409, если уже 5 |
+| `POST /contacts` | вход | `{name, relation?, phone, receivesSos?, notifyMethod?}` | контакт; 409, если уже 5 |
 | `PATCH /contacts/{id}` | вход | любые поля контакта | контакт |
 | `DELETE /contacts/{id}` | вход | — | 204 |
+
+`contact` = `{id, name, relation, phone, receivesSos, notifyMethod, position, createdAt}`.
+`POST` отвечает 201; 409 — уже 5 контактов или номер уже есть; 400 — свой номер;
+404 — контакт не найден или чужой. В `PATCH` null для поля игнорируется.
 
 ## Метки (этап 4)
 

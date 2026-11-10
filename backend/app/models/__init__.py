@@ -2,7 +2,8 @@
 
 from app.db.base import Base
 from app.models.auth_code import AuthCode
+from app.models.emergency_contact import EmergencyContact
 from app.models.place import Place
 from app.models.user import User
 
-__all__ = ["AuthCode", "Base", "Place", "User"]
+__all__ = ["AuthCode", "Base", "EmergencyContact", "Place", "User"]
