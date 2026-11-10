@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import auth, contacts, health, incidents, reference, sos, users
+from app.api.routes import alerts, auth, contacts, health, incidents, reference, sos, users
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
@@ -12,3 +12,4 @@ api_router.include_router(reference.router)
 api_router.include_router(contacts.router)
 api_router.include_router(incidents.router)
 api_router.include_router(sos.router)
+api_router.include_router(alerts.router)

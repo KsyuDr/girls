@@ -4,8 +4,10 @@
     uv run python -m app.cli set-role +79123456789 moderator
 Снять роль:
     uv run python -m app.cli set-role +79123456789 user
-Загрузить справочные точки карты Москвы (повторный запуск ничего не дублирует):
-    uv run python -m app.cli seed-places
+Загрузить демо-данные (повторный запуск ничего не дублирует):
+    uv run python -m app.cli seed            # всё сразу
+    uv run python -m app.cli seed-places     # справочные точки карты Москвы
+    uv run python -m app.cli seed-alerts     # демо-оповещения для ленты
 """
 
 import argparse
@@ -17,7 +19,9 @@ from fastapi import HTTPException
 from app.core.phone import normalize_phone
 from app.db.session import SessionFactory, engine
 from app.models.user import ROLES
+from app.reference.alerts_seed import DEMO_ALERTS
 from app.reference.places_seed import MOSCOW_PLACES
+from app.services.alerts import seed_alerts
 from app.services.auth import set_role
 from app.services.places import seed_places
 
@@ -35,13 +39,17 @@ async def _set_role(phone: str, role: str) -> int:
     return 0
 
 
-async def _seed_places() -> int:
+async def _seed(places: bool, alerts: bool) -> int:
     try:
         async with SessionFactory() as session:
-            added = await seed_places(session, MOSCOW_PLACES)
+            if places:
+                added = await seed_places(session, MOSCOW_PLACES)
+                print(f"Точки карты: добавлено {added}, всего в наборе {len(MOSCOW_PLACES)}")
+            if alerts:
+                added = await seed_alerts(session, DEMO_ALERTS)
+                print(f"Оповещения: добавлено {added}, всего в наборе {len(DEMO_ALERTS)}")
     finally:
         await engine.dispose()
-    print(f"Готово: добавлено точек — {added}, всего в наборе — {len(MOSCOW_PLACES)}")
     return 0
 
 
@@ -53,7 +61,9 @@ def main() -> int:
     set_role_cmd.add_argument("phone", help="Номер телефона, например +79123456789")
     set_role_cmd.add_argument("role", choices=ROLES)
 
+    commands.add_parser("seed", help="Загрузить все демо-данные")
     commands.add_parser("seed-places", help="Загрузить справочные точки карты Москвы")
+    commands.add_parser("seed-alerts", help="Загрузить демо-оповещения")
 
     args = parser.parse_args()
     if args.command == "set-role":
@@ -62,8 +72,10 @@ def main() -> int:
         except ValueError as exc:
             parser.error(str(exc))
         return asyncio.run(_set_role(phone, args.role))
-    if args.command == "seed-places":
-        return asyncio.run(_seed_places())
+    if args.command in ("seed", "seed-places", "seed-alerts"):
+        places = args.command in ("seed", "seed-places")
+        alerts = args.command in ("seed", "seed-alerts")
+        return asyncio.run(_seed(places, alerts))
     return 1
 
 

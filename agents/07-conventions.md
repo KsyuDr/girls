@@ -7,7 +7,7 @@ cd backend
 cp .env.example .env                    # один раз
 uv sync                                 # зависимости
 uv run alembic upgrade head             # миграции
-uv run python -m app.cli seed-places    # точки карты Москвы (можно запускать повторно)
+uv run python -m app.cli seed           # демо-данные: точки карты и оповещения (можно повторно)
 uv run uvicorn app.main:app --reload    # http://localhost:8000/docs
 ```
 Фронт: `cd frontend && npm ci && npm run dev` → http://localhost:5173

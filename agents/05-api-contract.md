@@ -119,7 +119,12 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 | Метод и путь | Доступ | Тело / параметры | Ответ |
 |---|---|---|---|
 | `GET /alerts` | все | `level` | лента |
-| `POST /alerts` | модератор | `{title, subtitle?, description, level, locationLabel?, sourceLabel?, actionsChecklist?}` | оповещение |
+| `GET /alerts/{id}` | все | — | оповещение (снятое с публикации — только модератору) |
+| `POST /alerts` | модератор | `{title, subtitle?, description, level?, locationLabel?, sourceLabel?, actionsChecklist?, isPublished?}` | оповещение, 201 |
+| `PATCH /alerts/{id}` | модератор | любые поля оповещения, `isPublished` | оповещение |
+
+`alert` = `{id, title, subtitle, description, level, locationLabel, sourceLabel, actionsChecklist, isPublished, createdAt, updatedAt}`.
+Параметры `GET /alerts`: `level` (можно повторять), `limit` (1–200, по умолчанию 50).
 
 ## Панель модератора (этап 7)
 
