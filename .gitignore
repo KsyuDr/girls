@@ -1,0 +1,10 @@
+# Общие
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# Локальные настройки Claude Code
+.claude/settings.local.json

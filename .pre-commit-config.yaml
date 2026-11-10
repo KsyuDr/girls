@@ -1,0 +1,59 @@
+# Хуки запускаются автоматически при `git commit`.
+# Установка один раз: `cd backend && uv run pre-commit install --install-hooks -t pre-commit -t commit-msg`
+# (pre-commit сам найдёт .pre-commit-config.yaml в корне репозитория)
+# Ручной прогон по всем файлам: `uv run --directory backend pre-commit run --all-files`
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^frontend/(package-lock\.json)$
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+
+  # Бэкенд: ruff — линтер и форматтер (правила в backend/pyproject.toml)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4
+    hooks:
+      - id: ruff
+        name: ruff check (backend)
+        args: [--fix, --config=backend/pyproject.toml]
+        files: ^backend/
+      - id: ruff-format
+        name: ruff format (backend)
+        args: [--config=backend/pyproject.toml]
+        files: ^backend/
+
+  # Фронтенд: prettier (формат) + eslint (ошибки). Нужен `npm ci` в frontend/
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (frontend)
+        language: system
+        entry: node frontend/node_modules/prettier/bin/prettier.cjs --write --ignore-unknown
+        files: ^frontend/
+        exclude: ^frontend/package-lock\.json$
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: npm --prefix frontend run lint
+        files: ^frontend/.*\.(js|jsx)$
+        pass_filenames: false
+
+  # Сообщения коммитов: Conventional Commits — `feat(auth): вход по коду`
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.5.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
