@@ -4,11 +4,20 @@ from typing import Annotated
 from pydantic import AfterValidator, Field
 
 from app.core.phone import normalize_phone
+from app.reference import CITIES
 from app.schemas.common import CamelModel
+
+
+def _check_city(value: str) -> str:
+    value = value.strip()
+    if value not in CITIES:
+        raise ValueError("Выберите город из списка")
+    return value
+
 
 Phone = Annotated[str, AfterValidator(normalize_phone)]
 Name = Annotated[str, Field(min_length=2, max_length=100)]
-City = Annotated[str, Field(min_length=2, max_length=60)]
+City = Annotated[str, Field(min_length=2, max_length=60), AfterValidator(_check_city)]
 
 
 class RegisterIn(CamelModel):

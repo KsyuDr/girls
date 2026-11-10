@@ -1,0 +1,61 @@
+"""Экстренные службы: номера, которые показываем на главной и в памятках."""
+
+from app.schemas.reference import EmergencyService
+
+SERVICES: list[EmergencyService] = [
+    EmergencyService(
+        id="112",
+        name="Единая служба спасения",
+        short_name="Спасатели",
+        description="Любая экстренная ситуация",
+        number="112",
+        icon="siren",
+        bg_color="#FDE7EC",
+        icon_color="#ED0536",
+        show_on_mobile_home=True,
+    ),
+    EmergencyService(
+        id="101",
+        name="Пожарная охрана",
+        short_name="Пожарные",
+        description="Пожар, задымление",
+        number="101",
+        icon="flame",
+        bg_color="#E6EEF1",
+        icon_color="#003C54",
+        show_on_mobile_home=True,
+    ),
+    EmergencyService(
+        id="102",
+        name="Полиция",
+        short_name="Полиция",
+        description="Угроза, кража, драка",
+        number="102",
+        icon="shield",
+        bg_color="#E5F2F7",
+        icon_color="#007DA5",
+        show_on_mobile_home=True,
+    ),
+    EmergencyService(
+        id="103",
+        name="Скорая помощь",
+        short_name="Скорая",
+        description="Угроза жизни и здоровью",
+        number="103",
+        icon="heart-pulse",
+        bg_color="#E0F7F4",
+        icon_color="#008F82",
+        show_on_mobile_home=True,
+    ),
+    EmergencyService(
+        id="104",
+        name="Газовая служба",
+        short_name="Газ",
+        description="Запах газа, утечка",
+        number="104",
+        icon="zap",
+        bg_color="#EDF1F5",
+        icon_color="#1D2A37",
+        show_on_mobile_home=False,
+    ),
+]
