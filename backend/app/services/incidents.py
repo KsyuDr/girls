@@ -5,13 +5,14 @@ from datetime import UTC, datetime
 from math import cos, radians
 
 from fastapi import UploadFile
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
-from app.core.geo import distance_meters
+from app.core.geo import EARTH_RADIUS_M, distance_meters, in_service_area
 from app.models import Incident, IncidentPhoto, IncidentResponse, User
 from app.models.incident import (
     RESPONSE_ACTIVE,
@@ -47,23 +48,26 @@ def with_details(query: Select) -> Select:
     )
 
 
-async def get_incident(session: AsyncSession, incident_id: int) -> Incident:
+async def get_incident(
+    session: AsyncSession, incident_id: int, *, for_update: bool = False
+) -> Incident:
+    """for_update — заблокировать строку метки до коммита: параллельные изменения одной метки
+    (фото сверх лимита, правка автора против скрытия модератором) идут по очереди."""
+    query = select(Incident).where(Incident.id == incident_id)
+    if for_update:
+        query = query.with_for_update()
     # populate_existing: после изменений в этой же сессии перечитываем связи и поля из базы
-    incident = await session.scalar(
-        with_details(select(Incident).where(Incident.id == incident_id)).execution_options(
-            populate_existing=True
-        )
-    )
+    incident = await session.scalar(with_details(query).execution_options(populate_existing=True))
     if incident is None:
         raise NotFoundError("Метка не найдена")
     return incident
 
 
 async def get_visible_incident(
-    session: AsyncSession, incident_id: int, viewer: User | None
+    session: AsyncSession, incident_id: int, viewer: User | None, *, for_update: bool = False
 ) -> Incident:
     """Скрытую метку видят только автор и модератор, остальным — 404."""
-    incident = await get_incident(session, incident_id)
+    incident = await get_incident(session, incident_id, for_update=for_update)
     if incident.status == STATUS_HIDDEN and not _is_author_or_moderator(incident, viewer):
         raise NotFoundError("Метка не найдена")
     return incident
@@ -95,23 +99,30 @@ async def list_incidents(
 
     has_point = lat is not None and lng is not None
     if has_point and radius is not None:
-        # Грубый квадрат в SQL, точный круг — ниже в Python
+        # Квадрат отсекает дальние строки дёшево, точный круг — гаверсинусом; всё в SQL, с LIMIT
         d_lat = radius / METERS_PER_DEGREE
         d_lng = radius / (METERS_PER_DEGREE * max(cos(radians(lat)), 0.01))
         query = query.where(
             Incident.lat.between(lat - d_lat, lat + d_lat),
             Incident.lng.between(lng - d_lng, lng + d_lng),
+            _sql_distance(lat, lng) <= radius,
         )
-    else:
-        query = query.limit(limit)
+    query = query.limit(limit)
 
-    result: list[tuple[Incident, int | None]] = []
-    for incident in await session.scalars(query):
-        distance = distance_meters(lat, lng, incident.lat, incident.lng) if has_point else None
-        if radius is not None and distance is not None and distance > radius:
-            continue
-        result.append((incident, distance))
-    return result[:limit]
+    return [
+        (incident, distance_meters(lat, lng, incident.lat, incident.lng) if has_point else None)
+        for incident in await session.scalars(query)
+    ]
+
+
+def _sql_distance(lat: float, lng: float) -> ColumnElement[float]:
+    """Расстояние от метки до точки в метрах (гаверсинус) как SQL-выражение."""
+    d_lat = func.radians(Incident.lat - lat)
+    d_lng = func.radians(Incident.lng - lng)
+    a = func.power(func.sin(d_lat / 2), 2) + cos(radians(lat)) * func.cos(
+        func.radians(Incident.lat)
+    ) * func.power(func.sin(d_lng / 2), 2)
+    return 2 * EARTH_RADIUS_M * func.asin(func.least(1.0, func.sqrt(a)))
 
 
 # ---------- запись ----------
@@ -123,6 +134,10 @@ async def create_incident(session: AsyncSession, user: User, data: IncidentCreat
         if user.last_lat is None or user.last_lng is None:
             raise BadRequestError("Укажите место на карте или включите геолокацию")
         lat, lng = user.last_lat, user.last_lng
+    if not in_service_area(lat, lng):
+        raise BadRequestError(
+            "Место метки за пределами России — проверьте точку на карте или геолокацию"
+        )
 
     incident = Incident(
         author_id=user.id,
@@ -141,7 +156,7 @@ async def create_incident(session: AsyncSession, user: User, data: IncidentCreat
 async def update_incident(
     session: AsyncSession, user: User, incident_id: int, data: IncidentUpdateIn
 ) -> Incident:
-    incident = await _get_own_open(session, user, incident_id)
+    incident = await _get_own_open(session, user, incident_id, for_update=True)
     for field in ("description", "address"):
         value = getattr(data, field)
         if value is not None:
@@ -164,14 +179,21 @@ def close(incident: Incident) -> None:
 async def add_photos(
     session: AsyncSession, user: User, incident_id: int, uploads: Sequence[UploadFile]
 ) -> list[IncidentPhoto]:
-    incident = await _get_own_open(session, user, incident_id)
-    free = media.MAX_PHOTOS_PER_INCIDENT - len(incident.photos)
-    if len(uploads) > free:
-        raise ConflictError(
-            f"К метке можно приложить не больше {media.MAX_PHOTOS_PER_INCIDENT} фото, "
-            f"осталось мест: {free}"
-        )
+    limit = media.MAX_PHOTOS_PER_INCIDENT
+    await _get_own_open(session, user, incident_id)  # 404/403/409 — до чтения файлов
+    if len(uploads) > limit:
+        raise ConflictError(f"К метке можно приложить не больше {limit} фото")
     photos = [await media.read_photo(upload) for upload in uploads]  # сначала проверяем все
+
+    # Свободные места считаем под блокировкой строки метки: параллельные загрузки
+    # ждут друг друга и не превысят лимит
+    incident = await _get_own_open(session, user, incident_id, for_update=True)
+    free = limit - len(incident.photos)
+    if len(photos) > free:
+        await session.rollback()
+        raise ConflictError(
+            f"К метке можно приложить не больше {limit} фото, осталось мест: {free}"
+        )
 
     saved: list[str] = []
     try:
@@ -197,7 +219,7 @@ async def add_photos(
 async def respond(
     session: AsyncSession, user: User, incident_id: int, data: ResponseCreateIn
 ) -> IncidentResponse:
-    incident = await get_visible_incident(session, incident_id, user)
+    incident = await get_visible_incident(session, incident_id, user, for_update=True)
     if incident.author_id == user.id:
         raise BadRequestError("Нельзя откликнуться на свою метку")
     if incident.status in (STATUS_CLOSED, STATUS_HIDDEN):
@@ -225,7 +247,7 @@ async def respond(
 
 
 async def cancel_response(session: AsyncSession, user: User, incident_id: int) -> None:
-    incident = await get_visible_incident(session, incident_id, user)
+    incident = await get_visible_incident(session, incident_id, user, for_update=True)
     response = next(
         (r for r in incident.responses if r.user_id == user.id and r.status == RESPONSE_ACTIVE),
         None,
@@ -236,8 +258,10 @@ async def cancel_response(session: AsyncSession, user: User, incident_id: int) -
     await session.commit()
 
 
-async def _get_own_open(session: AsyncSession, user: User, incident_id: int) -> Incident:
-    incident = await get_visible_incident(session, incident_id, user)
+async def _get_own_open(
+    session: AsyncSession, user: User, incident_id: int, *, for_update: bool = False
+) -> Incident:
+    incident = await get_visible_incident(session, incident_id, user, for_update=for_update)
     if incident.author_id != user.id:
         raise ForbiddenError("Изменять метку может только её автор")
     if incident.status == STATUS_HIDDEN:
@@ -279,10 +303,12 @@ def response_out(response: IncidentResponse, *, with_phone: bool = False) -> Res
     )
 
 
-def photo_out(photo: IncidentPhoto) -> PhotoOut:
+def photo_out(photo: IncidentPhoto, *, signed: bool = False) -> PhotoOut:
+    """signed — ссылка с подписью: по ней фото открывается и у скрытой метки.
+    Такие ссылки получают только автор и модератор."""
     return PhotoOut(
         id=photo.id,
-        url=media.media_url(photo.file_path),
+        url=media.media_url(photo.file_path, signed=signed),
         content_type=photo.content_type,
         size_bytes=photo.size_bytes,
     )
@@ -308,7 +334,9 @@ def _common_fields(incident: Incident, viewer: User | None, distance: int | None
         "is_anonymous": incident.is_anonymous,
         "status": incident.status,
         "is_mine": is_mine,
-        "photos": [photo_out(p) for p in incident.photos],
+        "photos": [
+            photo_out(p, signed=_is_author_or_moderator(incident, viewer)) for p in incident.photos
+        ],
         "responses_count": sum(r.status == RESPONSE_ACTIVE for r in incident.responses),
         "my_response": response_out(mine) if mine else None,
         # Автору — кто откликнулся и как связаться

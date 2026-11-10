@@ -18,8 +18,11 @@
 | last_address | varchar(200) null | |
 
 ## auth_codes — одноразовые коды входа
-| id | phone | code_hash | expires_at | attempts | used_at |
-Код живёт 5 минут, максимум 5 попыток. В dev/test код = `SMS_MOCK_CODE`.
+| id | phone | code_hash | expires_at | attempts | used_at | ip | name | city | geolocation_enabled |
+Код живёт 5 минут, максимум 5 неверных попыток на код и 10 на номер за час. В dev/test код =
+`SMS_MOCK_CODE`, в prod — 6 цифр. `ip` — для лимита выдачи кодов. `name`/`city`/`geolocation_enabled` —
+анкета регистрации, применяется к пользователю при вводе кода (у кода входа — null).
+Строка `users` появляется только после подтверждения номера.
 
 ## emergency_contacts
 | id | user_id FK | name | relation («Мама») | phone | receives_sos bool | notify_method (`sms`/`sms_push`) | position |

@@ -1,28 +1,46 @@
-"""Фото меток на диске: проверка формата по содержимому, сохранение и удаление.
+"""Фото меток на диске: проверка формата, очистка метаданных, сохранение, подпись ссылок.
 
-Файлы лежат в MEDIA_DIR (по умолчанию backend/media) и раздаются как статика /media/...
+Файлы лежат в MEDIA_DIR (по умолчанию backend/media) и раздаются роутом /media/... —
+не статикой: фото скрытой метки посторонним не отдаётся (app/api/routes/media.py).
 """
 
 import asyncio
+import hashlib
+import hmac
+import io
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.config import get_settings
 from app.core.errors import BadRequestError, PayloadTooLargeError
 
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 MAX_PHOTOS_PER_INCIDENT = 4
+MAX_PHOTO_PIXELS = 40_000_000  # 40 Мп: больше не бывает у телефонов, а «бомбу» не распакуем
 MEDIA_URL_PREFIX = "/media"
+
+_FORMATS = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
 
 
 def media_root() -> Path:
     return Path(get_settings().media_dir).resolve()
 
 
-def media_url(file_path: str) -> str:
-    return f"{MEDIA_URL_PREFIX}/{file_path}"
+def sign(file_path: str) -> str:
+    key = get_settings().jwt_secret.encode()
+    return hmac.new(key, f"media:{file_path}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def check_signature(file_path: str, signature: str | None) -> bool:
+    return signature is not None and hmac.compare_digest(sign(file_path), signature)
+
+
+def media_url(file_path: str, *, signed: bool = False) -> str:
+    url = f"{MEDIA_URL_PREFIX}/{file_path}"
+    return f"{url}?key={sign(file_path)}" if signed else url
 
 
 def sniff_image(data: bytes) -> tuple[str, str] | None:
@@ -51,7 +69,40 @@ async def read_photo(upload: UploadFile) -> ValidPhoto:
     kind = sniff_image(data)
     if kind is None:
         raise BadRequestError(f"{name}: поддерживаются только фото JPG, PNG и WebP")
-    return ValidPhoto(data, *kind)
+    content_type, extension = kind
+    try:
+        clean = await asyncio.to_thread(strip_metadata, data, content_type)
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise BadRequestError(f"{name}: файл повреждён или это не фото") from exc
+    return ValidPhoto(clean, content_type, extension)
+
+
+def strip_metadata(data: bytes, content_type: str) -> bytes:
+    """Пересохраняет картинку без EXIF (GPS, модель телефона) и прочих метаданных.
+
+    Поворот из EXIF применяем к пикселям, иначе фото с телефона «ляжет на бок».
+    """
+    image_format = _FORMATS[content_type]
+    out = io.BytesIO()
+    with Image.open(io.BytesIO(data)) as source:
+        if source.format != image_format:
+            raise ValueError("содержимое не совпадает с форматом")
+        if source.width * source.height > MAX_PHOTO_PIXELS:
+            raise ValueError("слишком большое разрешение")
+        image = ImageOps.exif_transpose(source)
+        if image_format == "JPEG" and image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+        elif image_format == "PNG" and image.mode not in ("RGB", "RGBA", "L", "LA", "P"):
+            image = image.convert("RGBA")
+        # Метаданные не переносим: из info оставляем только прозрачность палитры
+        image.info = {k: v for k, v in image.info.items() if k == "transparency"}
+        if image_format == "JPEG":
+            image.save(out, "JPEG", quality=90, optimize=True)
+        elif image_format == "PNG":
+            image.save(out, "PNG", optimize=True)
+        else:
+            image.save(out, "WEBP", quality=90)
+    return out.getvalue()
 
 
 async def save_photo(incident_id: int, photo: ValidPhoto) -> str:

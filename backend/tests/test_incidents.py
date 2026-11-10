@@ -1,8 +1,13 @@
+import asyncio
+import io
+
+import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
+from PIL import Image
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Incident
+from app.models import Incident, IncidentPhoto
 from app.services.media import MAX_PHOTO_BYTES
 from tests.conftest import Headers, LoginAs
 
@@ -15,9 +20,25 @@ FIRE = {
     "lat": 55.7570,
     "lng": 37.6230,
 }
-PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
-JPG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
-WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 64
+
+
+def image_bytes(fmt: str, exif: Image.Exif | None = None) -> bytes:
+    out = io.BytesIO()
+    Image.new("RGB", (16, 8), (237, 5, 54)).save(out, fmt, **({"exif": exif} if exif else {}))
+    return out.getvalue()
+
+
+def gps_exif() -> Image.Exif:
+    """EXIF как у фото с телефона: модель устройства и GPS."""
+    exif = Image.Exif()
+    exif[0x0110] = "Pixel 9"  # Model
+    exif[0x8825] = {1: "N", 2: (55.0, 45.0, 14.0)}  # GPSInfo: широта
+    return exif
+
+
+PNG = image_bytes("PNG")
+JPG = image_bytes("JPEG")
+WEBP = image_bytes("WEBP")
 
 POLINA = "+79120000001"
 IVAN = "+79120000002"
@@ -80,6 +101,31 @@ async def test_create_uses_last_location(client: AsyncClient, login_as: LoginAs)
     assert no_location.status_code == 400
     assert "геолокацию" in no_location.json()["detail"]
     assert (body["lat"], body["lng"]) == (55.1, 37.2)
+
+
+async def test_create_rejects_point_outside_service_area(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    """Метка в (0, 0) «съедала» масштаб карты у всех — такие точки не принимаем."""
+    headers = await login_as()
+
+    zero = await client.post("/api/incidents", headers=headers, json={**FIRE, "lat": 0, "lng": 0})
+    kaliningrad = await client.post(
+        "/api/incidents", headers=headers, json={**FIRE, "lat": 54.71, "lng": 20.51}
+    )
+    chukotka = await client.post(  # за линией перемены дат
+        "/api/incidents", headers=headers, json={**FIRE, "lat": 66.16, "lng": -169.8}
+    )
+    await client.patch("/api/users/me", headers=headers, json={"lastLat": 0, "lastLng": 0})
+    from_profile = await client.post(
+        "/api/incidents", headers=headers, json={**FIRE, "lat": None, "lng": None}
+    )
+
+    assert zero.status_code == 400
+    assert "за пределами России" in zero.json()["detail"]
+    assert kaliningrad.status_code == 201
+    assert chukotka.status_code == 201
+    assert from_profile.status_code == 400
 
 
 async def test_create_validation(client: AsyncClient, login_as: LoginAs) -> None:
@@ -167,6 +213,19 @@ async def test_list_distance_and_radius(client: AsyncClient, login_as: LoginAs) 
     assert 60 <= distances[near["id"]] <= 80
     assert 5000 <= distances[far["id"]] <= 5300
     assert [i["id"] for i in in_radius.json()] == [near["id"]]
+
+
+async def test_radius_and_limit_are_applied_together(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    """Угол квадрата вне круга не попадает в выдачу и не съедает место в limit."""
+    headers = await login_as()
+    near = await create(client, headers, lat=55.7545, lng=37.6208)
+    await create(client, headers, lat=55.7609, lng=37.6332)  # ~1100 м по диагонали, новее
+
+    response = await client.get("/api/incidents", params={**HERE, "radius": 1000, "limit": 1})
+
+    assert [i["id"] for i in response.json()] == [near["id"]]
 
 
 async def test_list_parameter_errors(client: AsyncClient) -> None:
@@ -284,11 +343,13 @@ async def test_upload_photos(client: AsyncClient, login_as: LoginAs) -> None:
     assert response.status_code == 201, response.text
     photos = response.json()
     assert [p["contentType"] for p in photos] == ["image/png", "image/jpeg", "image/webp"]
-    assert photos[0]["sizeBytes"] == len(PNG)
     assert photos[0]["url"].startswith(f"/media/incidents/{incident['id']}/")
-    file = await client.get(photos[0]["url"])
+    file = await client.get(photos[0]["url"].split("?")[0])  # публичная ссылка без подписи
     assert file.status_code == 200
-    assert file.content == PNG
+    assert file.headers["content-type"] == "image/png"
+    assert file.headers["x-content-type-options"] == "nosniff"
+    assert photos[0]["sizeBytes"] == len(file.content)
+    assert Image.open(io.BytesIO(file.content)).size == (16, 8)
     detail = (await client.get(f"/api/incidents/{incident['id']}")).json()
     assert [p["id"] for p in detail["photos"]] == [p["id"] for p in photos]
 
@@ -349,6 +410,109 @@ async def test_bad_photo_in_batch_saves_nothing(client: AsyncClient, login_as: L
 
     assert response.status_code == 400
     assert (await client.get(f"/api/incidents/{incident['id']}")).json()["photos"] == []
+
+
+@pytest.mark.parametrize("fmt", ["JPEG", "PNG", "WEBP"])
+async def test_photo_metadata_is_stripped(client: AsyncClient, login_as: LoginAs, fmt: str) -> None:
+    headers = await login_as()
+    incident = await create(client, headers)
+    original = image_bytes(fmt, exif=gps_exif())
+    assert b"Pixel 9" in original
+
+    response = await client.post(
+        f"/api/incidents/{incident['id']}/photos",
+        headers=headers,
+        files={"files": (f"a.{fmt.lower()}", original, "image/jpeg")},
+    )
+
+    assert response.status_code == 201, response.text
+    saved = (await client.get(response.json()[0]["url"])).content
+    assert b"Pixel 9" not in saved
+    with Image.open(io.BytesIO(saved)) as image:
+        assert image.format == fmt
+        assert not image.getexif()
+
+
+async def test_broken_photo_rejected(client: AsyncClient, login_as: LoginAs) -> None:
+    headers = await login_as()
+    incident = await create(client, headers)
+    broken = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64  # заголовок PNG, а дальше мусор
+
+    response = await client.post(
+        f"/api/incidents/{incident['id']}/photos",
+        headers=headers,
+        files={"files": ("a.png", broken, "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert "повреждён" in response.json()["detail"]
+
+
+async def test_parallel_uploads_respect_photo_limit(
+    client: AsyncClient, login_as: LoginAs, db: AsyncSession
+) -> None:
+    headers = await login_as()
+    incident = await create(client, headers)
+    url = f"/api/incidents/{incident['id']}/photos"
+    three = [("files", (f"{n}.png", PNG, "image/png")) for n in range(3)]
+
+    responses = await asyncio.gather(
+        *(client.post(url, headers=headers, files=three) for _ in range(4))
+    )
+
+    assert sorted(r.status_code for r in responses) == [201, 409, 409, 409]
+    count = await db.scalar(
+        select(func.count())
+        .select_from(IncidentPhoto)
+        .where(IncidentPhoto.incident_id == incident["id"])
+    )
+    assert count == 3
+
+
+async def test_hidden_incident_photos_are_not_public(
+    client: AsyncClient, login_as: LoginAs, db: AsyncSession
+) -> None:
+    polina = await login_as(phone=POLINA)
+    moderator = await login_as(phone="+79120000009", name="Модератор Мария", role="moderator")
+    incident = await create(client, polina)
+    uploaded = await client.post(
+        f"/api/incidents/{incident['id']}/photos",
+        headers=polina,
+        files={"files": ("a.png", PNG, "image/png")},
+    )
+    signed_url = uploaded.json()[0]["url"]  # автору — подписанная ссылка
+    public_url = signed_url.split("?")[0]
+    assert "?key=" in signed_url
+    assert (await client.get(public_url)).status_code == 200
+
+    await set_status(db, incident["id"], "hidden")
+
+    assert (await client.get(public_url)).status_code == 404
+    assert (await client.get(public_url + "?key=0000")).status_code == 404
+    assert (await client.get(signed_url)).status_code == 200
+    moderation = await client.get("/api/moderation/incidents", headers=moderator)
+    moderator_url = moderation.json()[0]["photos"][0]["url"]
+    assert (await client.get(moderator_url)).status_code == 200
+
+
+async def test_media_unknown_file(client: AsyncClient) -> None:
+    assert (await client.get("/media/incidents/1/nope.png")).status_code == 404
+    assert (await client.get("/media/../pyproject.toml")).status_code == 404
+
+
+async def test_request_body_limit(client: AsyncClient, login_as: LoginAs) -> None:
+    headers = await login_as()
+    incident = await create(client, headers)
+    chunk = b"\x00" * (5 * 1024 * 1024)
+
+    response = await client.post(
+        f"/api/incidents/{incident['id']}/photos",
+        headers=headers,
+        files=[("files", (f"{n}.png", chunk, "image/png")) for n in range(6)],
+    )
+
+    assert response.status_code == 413
+    assert "Запрос слишком большой" in response.json()["detail"]
 
 
 # ---------- отклики «Помогу» ----------

@@ -12,3 +12,15 @@ def distance_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
     d_lambda = radians(lng2 - lng1)
     a = sin(d_phi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(d_lambda / 2) ** 2
     return round(2 * EARTH_RADIUS_M * asin(min(1.0, sqrt(a))))
+
+
+# Где работает сервис: прямоугольник вокруг России (с Калининградом и Чукоткой за 180°).
+# Грубо, но отсекает мусор вроде (0, 0), из-за которого «съезжает» вся карта.
+SERVICE_AREA_LAT = (41.0, 82.0)
+SERVICE_AREA_LNG_WEST = 19.0  # от Калининграда на восток до 180°
+SERVICE_AREA_LNG_EAST = -168.0  # Чукотка за линией перемены дат: от −180° до −168°
+
+
+def in_service_area(lat: float, lng: float) -> bool:
+    lat_ok = SERVICE_AREA_LAT[0] <= lat <= SERVICE_AREA_LAT[1]
+    return lat_ok and (lng >= SERVICE_AREA_LNG_WEST or lng <= SERVICE_AREA_LNG_EAST)

@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, Field, model_validator
 
 from app.core.phone import normalize_phone
 from app.reference import CITIES
@@ -71,6 +71,14 @@ class UserUpdateIn(CamelModel):
     last_lat: Annotated[float, Field(ge=-90, le=90)] | None = None
     last_lng: Annotated[float, Field(ge=-180, le=180)] | None = None
     last_address: Annotated[str, Field(max_length=200)] | None = None
+
+    @model_validator(mode="after")
+    def _both_coordinates(self) -> Self:
+        """Половина точки в профиле бесполезна: lastLat и lastLng меняются только вместе."""
+        sent = {"last_lat", "last_lng"} & self.model_fields_set
+        if sent and (len(sent) == 1 or (self.last_lat is None) != (self.last_lng is None)):
+            raise ValueError("Передайте обе координаты: lastLat и lastLng")
+        return self
 
 
 class NotificationsIn(CamelModel):

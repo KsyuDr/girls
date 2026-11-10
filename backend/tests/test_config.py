@@ -13,3 +13,7 @@ def test_prod_accepts_long_secret() -> None:
     settings = Settings(environment="prod", jwt_secret="x" * 40, _env_file=None)
 
     assert settings.environment == "prod"
+
+
+def test_debug_is_off_by_default() -> None:
+    assert Settings(_env_file=None).debug is False

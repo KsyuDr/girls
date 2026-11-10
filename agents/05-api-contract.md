@@ -32,13 +32,20 @@
 | Метод и путь | Доступ | Тело запроса | Ответ |
 |---|---|---|---|
 | `POST /auth/register` | все | `{name, phone, city, geolocationEnabled}` | `{step: 2, smsSent: true, phone}`; 409, если номер уже подтверждён |
-| `POST /auth/login` | все | `{phone}` | `{step: 2, smsSent: true, phone}`; 404, если номера нет |
+| `POST /auth/login` | все | `{phone}` | `{step: 2, smsSent: true, phone}`; 404, если номера нет (или он не подтверждён) |
 | `POST /auth/verify` | все | `{phone, code}` | `{accessToken, tokenType: "bearer", user}`; 400 неверный/просроченный код, 429 много попыток |
+
+Лимиты (решение 71): `register`/`login` — 429 с заголовком `Retry-After`, если код на этот номер
+запрашивали меньше минуты назад, больше 5 раз за час или с этого IP больше 30 раз за час; `verify` —
+429 после 5 неверных попыток на код или 10 на номер за час. В prod без SMS-провайдера `register`/`login` — 503.
+Пользователь создаётся при первом успешном `verify`.
+Ошибки 422 — `{"detail": [{type, loc, msg}]}`, `msg` по-русски: «Имя: не короче 2 символов».
 | `GET /users/me` | вход | — | `user` |
 | `PATCH /users/me` | вход | любые из `{name, city, geolocationEnabled, pushNotificationsEnabled, lastLat, lastLng, lastAddress}` | `user` |
 | `PATCH /user/notifications` | вход | `{pushNotificationsEnabled}` | `user` (путь как в api.js) |
 
 `user` = `{id, phone, name, city, role, geolocationEnabled, pushNotificationsEnabled, lastLat, lastLng, lastAddress, phoneVerifiedAt, createdAt}`.
+`lastLat` и `lastLng` в `PATCH /users/me` передаются только вместе (обе `null` — стереть), иначе 422.
 
 ## Справочники (этап 2)
 
@@ -93,13 +100,20 @@
 `incident` = `{id, type, description, address, lat, lng, isAnonymous, status, author, isMine, photos,
 responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, closedAt}`, где
 `author` = `{id, name: "Полина И.", phone: null}` или `null` у анонимной метки;
-`photos[]` = `{id, url: "/media/...", contentType, sizeBytes}`;
+`photos[]` = `{id, url: "/media/...", contentType, sizeBytes}` (автору и модератору — `url` с `?key=...`:
+по такой ссылке фото открывается и у скрытой метки; без подписи фото скрытой метки — 404);
 `responses` — список откликов только автору, остальным `null`;
 `response` = `{id, incidentId, user: {id, name, phone}, message, status, createdAt}` (`phone` — только автору метки).
 
 `POST /incidents`: `lat`/`lng` необязательны — тогда берётся последнее местоположение пользователя.
+Точка вне России (например, `0, 0`) — 400.
 `PATCH /incidents/{id}`: `{description?, address?, status?: "closed"}`.
-Ошибки фото: 400 — не JPG/PNG/WebP, 413 — больше 5 МБ, 409 — больше 4 на метку, 403 — не автор.
+Ошибки фото: 400 — не JPG/PNG/WebP или файл битый, 413 — больше 5 МБ (или запрос больше 25 МБ),
+409 — больше 4 на метку, 403 — не автор. Фото пересохраняются без EXIF (GPS, модель телефона).
+
+| Метод и путь | Доступ | Ответ |
+|---|---|---|
+| `GET /media/{путь}` (без `/api`) | все; у скрытой метки — по подписанной ссылке | файл фото, `Cache-Control: private, max-age=300` |
 
 ## SOS (этап 5)
 
@@ -123,6 +137,9 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 | `GET /alerts/{id}` | все | — | оповещение (снятое с публикации — только модератору) |
 | `POST /alerts` | модератор | `{title, subtitle?, description, level?, locationLabel?, sourceLabel?, actionsChecklist?, isPublished?}` | оповещение, 201 |
 | `PATCH /alerts/{id}` | модератор | любые поля оповещения, `isPublished` | оповещение |
+
+В `PATCH /alerts/{id}` `subtitle`/`sourceLabel` со значением `null` или `""` стираются,
+`locationLabel: null` — «Весь город», `null` у остальных полей игнорируется.
 
 `alert` = `{id, title, subtitle, description, level, locationLabel, sourceLabel, actionsChecklist, isPublished, createdAt, updatedAt}`.
 Параметры `GET /alerts`: `level` (можно повторять), `limit` (1–200, по умолчанию 50).

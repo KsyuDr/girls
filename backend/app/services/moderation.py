@@ -17,7 +17,8 @@ from app.services import sos as sos_service
 async def set_incident_status(
     session: AsyncSession, moderator: User, incident_id: int, data: ModerationIncidentUpdateIn
 ) -> Incident:
-    incident = await incidents_service.get_incident(session, incident_id)
+    # Блокировка строки: скрытие не пересечётся с одновременной правкой автора
+    incident = await incidents_service.get_incident(session, incident_id, for_update=True)
     now = datetime.now(UTC)
     if incident.reacted_at is None and data.status != STATUS_NEW:
         incident.reacted_at = now

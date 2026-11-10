@@ -106,7 +106,7 @@ async def upload_photos(
     session: SessionDep,
 ) -> list[PhotoOut]:
     photos = await service.add_photos(session, user, incident_id, files)
-    return [service.photo_out(p) for p in photos]
+    return [service.photo_out(p, signed=True) for p in photos]  # загрузил автор
 
 
 @router.patch(

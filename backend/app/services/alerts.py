@@ -10,6 +10,8 @@ from app.models import Alert, User
 from app.models.alert import DEFAULT_LOCATION
 from app.schemas.alert import AlertCreateIn, AlertUpdateIn
 
+CLEARABLE = {"subtitle", "source_label"}
+
 
 async def list_alerts(
     session: AsyncSession,
@@ -51,7 +53,11 @@ async def update_alert(
 ) -> Alert:
     alert = await get_alert(session, alert_id, moderator)
     for field, value in data.model_dump(exclude_unset=True).items():
-        if value is not None:
+        if field in CLEARABLE:
+            setattr(alert, field, value or None)  # null или "" — стереть
+        elif field == "location_label":
+            alert.location_label = value or DEFAULT_LOCATION
+        elif value is not None:  # обязательные поля: null игнорируем
             setattr(alert, field, value)
     await session.commit()
     await session.refresh(alert)

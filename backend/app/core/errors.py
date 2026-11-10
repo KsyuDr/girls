@@ -31,8 +31,14 @@ class ConflictError(HTTPException):
 
 
 class TooManyRequestsError(HTTPException):
+    def __init__(self, detail: str, retry_after: int | None = None) -> None:
+        headers = {"Retry-After": str(retry_after)} if retry_after else None
+        super().__init__(status.HTTP_429_TOO_MANY_REQUESTS, detail, headers=headers)
+
+
+class ServiceUnavailableError(HTTPException):
     def __init__(self, detail: str) -> None:
-        super().__init__(status.HTTP_429_TOO_MANY_REQUESTS, detail)
+        super().__init__(status.HTTP_503_SERVICE_UNAVAILABLE, detail)
 
 
 class PayloadTooLargeError(HTTPException):

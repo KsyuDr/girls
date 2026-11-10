@@ -13,19 +13,22 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "postgresql+asyncpg://safe_city:safe_city@localhost:5433/safe_city_test",
 )
 os.environ["ENVIRONMENT"] = "test"
+# Все тесты ходят с одного адреса (127.0.0.1) — лимит на IP проверяется отдельным тестом
+os.environ["AUTH_CODES_PER_IP_PER_HOUR"] = "100000"
 # Фото из тестов — во временную папку, а не в backend/media
 os.environ["MEDIA_DIR"] = tempfile.mkdtemp(prefix="safe_city_media_")
 
 from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import SessionFactory, engine
 from app.main import app
-from app.models import Base
+from app.models import AuthCode, Base
 from app.services.auth import set_role
 
 TEST_CODE = "0000"  # SMS_MOCK_CODE по умолчанию
@@ -80,11 +83,21 @@ def login_as(client: AsyncClient) -> LoginAs:
             "/api/auth/register", json={"name": name, "phone": phone, "city": "Москва"}
         )
         assert response.status_code == 200, response.text
-        if role != "user":
-            async with SessionFactory() as session:
-                await set_role(session, phone, role)
         response = await client.post("/api/auth/verify", json={"phone": phone, "code": TEST_CODE})
         assert response.status_code == 200, response.text
+        if role != "user":  # пользователь появляется после ввода кода; роль читается на запрос
+            async with SessionFactory() as session:
+                await set_role(session, phone, role)
         return {"Authorization": f"Bearer {response.json()['accessToken']}"}
 
     return _login
+
+
+async def age_auth_codes(seconds: int, phone: str | None = None) -> None:
+    """Сдвигает коды в прошлое — чтобы проверить лимиты, не дожидаясь минуты или часа."""
+    query = update(AuthCode).values(created_at=AuthCode.created_at - timedelta(seconds=seconds))
+    if phone is not None:
+        query = query.where(AuthCode.phone == phone)
+    async with SessionFactory() as session:
+        await session.execute(query)
+        await session.commit()

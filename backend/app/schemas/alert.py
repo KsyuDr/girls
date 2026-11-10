@@ -40,7 +40,11 @@ class AlertCreateIn(_AlertIn):
 
 
 class AlertUpdateIn(_AlertIn):
-    """Модератор правит оповещение или снимает его с публикации. null для поля игнорируется."""
+    """Модератор правит оповещение или снимает его с публикации.
+
+    null у обязательных полей игнорируется; subtitle и sourceLabel null или "" стирает,
+    locationLabel — возвращает «Весь город».
+    """
 
     title: Title | None = None
     subtitle: Subtitle | None = None

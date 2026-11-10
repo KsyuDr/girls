@@ -163,3 +163,25 @@ async def test_seed_alerts(client: AsyncClient, db: AsyncSession) -> None:
     feed = (await client.get("/api/alerts")).json()
     assert feed[0]["title"] == "Штормовое предупреждение"  # последний в наборе — самый свежий
     assert {a["level"] for a in feed} == {"critical", "warning", "info"}
+
+
+async def test_update_alert_clears_optional_fields(client: AsyncClient, login_as: LoginAs) -> None:
+    headers = await moderator(login_as)
+    alert = await publish(
+        client,
+        headers,
+        subtitle="Порывы до 25 м/с",
+        sourceLabel="Гидрометцентр",
+        locationLabel="ЦАО",
+    )
+
+    edited = await client.patch(
+        f"/api/alerts/{alert['id']}",
+        headers=headers,
+        json={"subtitle": None, "sourceLabel": "", "locationLabel": None},
+    )
+
+    assert edited.status_code == 200
+    assert edited.json()["subtitle"] is None
+    assert edited.json()["sourceLabel"] is None
+    assert edited.json()["locationLabel"] == "Весь город"

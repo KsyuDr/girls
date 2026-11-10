@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -113,12 +113,21 @@ async def cancel_sos(session: AsyncSession, user: User, sos_id: int | None) -> S
 
 
 async def finish(session: AsyncSession, sos: SosSignal, status: str) -> None:
-    """Завершает активный сигнал (отмена пользователем или закрытие модератором)."""
-    if sos.status != SOS_ACTIVE:
-        raise ConflictError("Сигнал SOS уже завершён")
-    sos.status = status
-    sos.ended_at = datetime.now(UTC)
+    """Завершает активный сигнал (отмена пользователем или закрытие модератором).
+
+    Условный UPDATE: из двух одновременных завершений (отмена и «помощь пришла»)
+    срабатывает ровно одно, второе получает 409. SMS «отбой» уходит, только если
+    сигнал отменила именно эта операция.
+    """
+    finished = await session.scalar(
+        update(SosSignal)
+        .where(SosSignal.id == sos.id, SosSignal.status == SOS_ACTIVE)
+        .values(status=status, ended_at=datetime.now(UTC))
+        .returning(SosSignal.id)
+    )
     await session.commit()
+    if finished is None:
+        raise ConflictError("Сигнал SOS уже завершён")
     if status == SOS_CANCELLED:
         for delivery in sos.deliveries:
             if delivery.status == DELIVERY_DELIVERED:

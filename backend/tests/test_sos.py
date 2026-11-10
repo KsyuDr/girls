@@ -230,3 +230,27 @@ async def test_deleted_contact_stays_in_history(client: AsyncClient, login_as: L
 
     assert active["notifiedContacts"][0]["contactId"] is None
     assert active["notifiedContacts"][0]["phone"] == "+79220000001"
+
+
+async def test_cancel_and_resolve_at_once(
+    client: AsyncClient, login_as: LoginAs, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Отмена и «помощь пришла» одновременно: срабатывает одно, «отбой» — только при отмене."""
+    headers = await login_as()
+    moderator = await login_as(phone="+79120000099", name="Анна Смирнова", role="moderator")
+    await add_contact(client, headers, "+79220000001")
+    caplog.set_level(logging.WARNING, logger="safe_city.sms")
+
+    for _ in range(5):
+        sos = (await client.post("/api/sos", headers=headers, json=WHERE)).json()
+        caplog.clear()
+
+        cancel, resolve = await asyncio.gather(
+            client.post(f"/api/sos/{sos['id']}/cancel", headers=headers),
+            client.post(f"/api/moderation/sos/{sos['id']}/resolve", headers=moderator),
+        )
+
+        assert sorted([cancel.status_code, resolve.status_code]) == [200, 409]
+        final = cancel.json()["status"] if cancel.status_code == 200 else "resolved"
+        assert (resolve.status_code == 200) == (final == "resolved")
+        assert ("cancelled" in caplog.text) == (cancel.status_code == 200)

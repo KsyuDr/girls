@@ -138,3 +138,26 @@ async def test_get_moderator_dependency(login_as: LoginAs, db: AsyncSession) -> 
     assert await get_moderator(moderator) is moderator
     with pytest.raises(ForbiddenError):
         await get_moderator(user)
+
+
+async def test_update_profile_needs_both_coordinates(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    headers = await login_as()
+
+    only_lat = await client.patch("/api/users/me", headers=headers, json={"lastLat": 55.75})
+    half_null = await client.patch(
+        "/api/users/me", headers=headers, json={"lastLat": 55.75, "lastLng": None}
+    )
+    both = await client.patch(
+        "/api/users/me", headers=headers, json={"lastLat": 55.75, "lastLng": 37.62}
+    )
+    cleared = await client.patch(
+        "/api/users/me", headers=headers, json={"lastLat": None, "lastLng": None}
+    )
+
+    assert only_lat.status_code == 422
+    assert only_lat.json()["detail"][0]["msg"] == "Передайте обе координаты: lastLat и lastLng"
+    assert half_null.status_code == 422
+    assert (both.json()["lastLat"], both.json()["lastLng"]) == (55.75, 37.62)
+    assert (cleared.json()["lastLat"], cleared.json()["lastLng"]) == (None, None)
