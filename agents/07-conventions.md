@@ -11,6 +11,13 @@ uv run uvicorn app.main:app --reload    # http://localhost:8000/docs
 ```
 Фронт: `cd frontend && npm ci && npm run dev` → http://localhost:5173
 
+Вход в dev: код подтверждения всегда `0000` (смотрите строку `[SMS MOCK]` в логе сервера).
+Сделать пользователя модератором:
+```bash
+uv run python -m app.cli set-role +79123456789 moderator
+```
+В Swagger: выполнить `POST /api/auth/verify`, скопировать `accessToken`, нажать **Authorize**.
+
 ## Стиль кода
 - **Python** — ruff (линтер + форматтер), правила в `backend/pyproject.toml`, длина строки 100,
   двойные кавычки, сортировка импортов. Аннотации типов у всех функций.
