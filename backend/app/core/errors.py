@@ -33,3 +33,8 @@ class ConflictError(HTTPException):
 class TooManyRequestsError(HTTPException):
     def __init__(self, detail: str) -> None:
         super().__init__(status.HTTP_429_TOO_MANY_REQUESTS, detail)
+
+
+class PayloadTooLargeError(HTTPException):
+    def __init__(self, detail: str) -> None:
+        super().__init__(status.HTTP_413_CONTENT_TOO_LARGE, detail)

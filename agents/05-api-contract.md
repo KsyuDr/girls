@@ -77,13 +77,28 @@
 
 | Метод и путь | Доступ | Тело / параметры | Ответ |
 |---|---|---|---|
-| `GET /incidents` | все | `type`, `status`, `lat`, `lng`, `radius`, `mine` | список (скрытые не отдаются) |
+| `GET /incidents` | все | `type`, `status`, `lat`, `lng`, `radius`, `mine`, `limit` | список (скрытые не отдаются) |
 | `GET /incidents/{id}` | все | — | метка |
-| `POST /incidents` | вход | `{type, description, address, lat, lng, isAnonymous}` | метка |
+| `POST /incidents` | вход | `{type, description, address, lat?, lng?, isAnonymous?}` | метка, 201 |
 | `POST /incidents/{id}/photos` | вход | multipart `files` (до 4, до 5 МБ, jpg/png/webp) | список фото |
 | `PATCH /incidents/{id}` | вход (автор) | описание или закрыть | метка |
 | `POST /incidents/{id}/responses` | вход | `{message?}` — отклик «Помогу» | отклик |
 | `DELETE /incidents/{id}/responses/me` | вход | — | 204 |
+
+Параметры `GET /incidents`: `type` и `status` (можно повторять; `status` — `new`/`in_progress`/`closed`),
+`lat` + `lng`, `radius` (метры, нужны координаты), `mine=true` (нужен вход), `limit` (1–500, по умолчанию 100).
+`GET /incidents/{id}` тоже принимает `lat` + `lng`. Токен необязателен, но неверный — 401.
+
+`incident` = `{id, type, description, address, lat, lng, isAnonymous, status, author, isMine, photos,
+responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, closedAt}`, где
+`author` = `{id, name: "Полина И.", phone: null}` или `null` у анонимной метки;
+`photos[]` = `{id, url: "/media/...", contentType, sizeBytes}`;
+`responses` — список откликов только автору, остальным `null`;
+`response` = `{id, incidentId, user: {id, name, phone}, message, status, createdAt}` (`phone` — только автору метки).
+
+`POST /incidents`: `lat`/`lng` необязательны — тогда берётся последнее местоположение пользователя.
+`PATCH /incidents/{id}`: `{description?, address?, status?: "closed"}`.
+Ошибки фото: 400 — не JPG/PNG/WebP, 413 — больше 5 МБ, 409 — больше 4 на метку, 403 — не автор.
 
 ## SOS (этап 5)
 

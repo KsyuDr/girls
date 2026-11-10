@@ -33,7 +33,7 @@ app/
 ├── reference/           # статичные справочники и сид точек карты         (этап 2)
 └── api/
     ├── router.py        # общий APIRouter(prefix="/api")
-    ├── deps.py          # зависимости: CurrentUser, ModeratorUser       (этап 1)
+    ├── deps.py          # зависимости: CurrentUser, OptionalUser, ModeratorUser
     └── routes/          # по файлу на раздел: auth, contacts, incidents, sos, alerts, ...
 alembic/                 # миграции (async env)
 tests/                   # pytest + httpx.AsyncClient, отдельная база safe_city_test

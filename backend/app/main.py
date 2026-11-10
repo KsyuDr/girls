@@ -1,7 +1,10 @@
 """Точка входа FastAPI. Запуск: `uv run uvicorn app.main:app --reload`."""
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -23,6 +26,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router)
+
+    # Фото меток: backend/media/incidents/<id>/<файл> → /media/incidents/<id>/<файл>
+    media_dir = Path(settings.media_dir)
+    media_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=media_dir), name="media")
     return app
 
 

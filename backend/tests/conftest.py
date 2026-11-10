@@ -5,6 +5,7 @@
 """
 
 import os
+import tempfile
 
 # Всегда тестовая база (фикстуры делают drop_all!). Переопределяется через TEST_DATABASE_URL.
 os.environ["DATABASE_URL"] = os.environ.get(
@@ -12,6 +13,8 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "postgresql+asyncpg://safe_city:safe_city@localhost:5433/safe_city_test",
 )
 os.environ["ENVIRONMENT"] = "test"
+# Фото из тестов — во временную папку, а не в backend/media
+os.environ["MEDIA_DIR"] = tempfile.mkdtemp(prefix="safe_city_media_")
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 
