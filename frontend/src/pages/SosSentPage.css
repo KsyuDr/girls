@@ -926,3 +926,92 @@
     cursor: pointer;
   }
 }
+
+/* Нет получателей / ошибка отмены: говорим как есть */
+.sos-badge--red {
+  background-color: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.sos-no-recipients {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-danger);
+  border-radius: 12px;
+  background-color: var(--color-danger-light);
+  color: var(--color-danger);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.sos-no-recipients strong {
+  font-size: 16px;
+}
+
+.sos-no-recipients button {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--color-danger);
+  color: var(--color-white);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sos-cancel-error {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-danger);
+  border-radius: 12px;
+  background-color: var(--color-danger-light);
+  color: var(--color-danger);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.sos-banner__safe-btn:disabled,
+.sos-mobile-actions__cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* «Позвонить 112» в боковом меню — ссылка tel:, а не кнопка */
+a.sos-sidebar__sos-btn {
+  text-decoration: none;
+}
+
+/* Ноутбук 1024–1280 px: карта и списки друг под другом, кнопки баннера переносятся под текст */
+@media (min-width: 961px) and (max-width: 1280px) {
+  .sos-main {
+    padding: 28px 24px;
+  }
+
+  .sos-banner {
+    flex-wrap: wrap;
+    padding: 24px;
+  }
+
+  .sos-banner__text {
+    flex-basis: calc(100% - 120px);
+  }
+
+  .sos-grid {
+    flex-direction: column;
+  }
+
+  .sos-map-card {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  .sos-side {
+    width: 100%;
+    min-width: 0;
+  }
+}

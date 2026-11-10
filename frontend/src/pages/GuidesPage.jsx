@@ -40,6 +40,7 @@ export default function GuidesPage({
   services = [],
   guides = [],
   initialMobileDetailOpen = false,
+  canModerate = false,
   onNavigate,
   onTriggerSos,
 }) {
@@ -94,7 +95,7 @@ export default function GuidesPage({
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   const handleNavClick = (id) => {

@@ -19,6 +19,7 @@ import {
   MapPin,
   LayoutDashboard,
 } from 'lucide-react';
+import { plural } from '../services/adapters';
 import './HomePage.css';
 
 const SERVICE_ICONS = {
@@ -35,7 +36,16 @@ const ALERT_ICONS = {
   'message-circle': MessageCircle,
 };
 
-export default function HomePage({ user, services, alerts, contacts, onNavigate, onTriggerSos }) {
+export default function HomePage({
+  user,
+  services,
+  alerts,
+  contacts,
+  canModerate = false,
+  onNavigate,
+  onTriggerSos,
+  onConfirmSos,
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sosState, setSosState] = useState('idle'); // 'idle' | 'holding'
   const [holdProgress, setHoldProgress] = useState(0);
@@ -49,6 +59,24 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
       : 'не выбраны';
 
   const criticalAlertsCount = alerts.filter((a) => a.level === 'critical').length;
+  const alertsStatus =
+    criticalAlertsCount > 0
+      ? `${criticalAlertsCount} ${plural(
+          criticalAlertsCount,
+          'критическое оповещение',
+          'критических оповещения',
+          'критических оповещений'
+        )}`
+      : 'критических оповещений нет';
+  // «Включена» — только если место действительно известно (hasLocation нет у мок-пользователя)
+  const hasLocation = user.hasLocation !== false;
+  const geoStatus = !user.geolocationEnabled
+    ? 'Геолокация отключена'
+    : hasLocation
+      ? 'Геолокация включена'
+      : 'Местоположение не определено';
+  const accuracyText =
+    typeof user.accuracyMeters === 'number' ? ` · точность ${user.accuracyMeters} м` : '';
 
   const startHold = () => {
     setSosState('holding');
@@ -63,9 +91,7 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
         holdTimerRef.current = null;
         setSosState('idle');
         setHoldProgress(0);
-        if (onTriggerSos) {
-          onTriggerSos();
-        }
+        (onConfirmSos || onTriggerSos)?.();
       } else {
         holdTimerRef.current = requestAnimationFrame(tick);
       }
@@ -102,7 +128,7 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   const mobileServices = services.filter((s) => s.showOnMobileHome);
@@ -200,12 +226,15 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
               Здравствуйте, {user.firstName}
             </h1>
             <p className="home-topbar__status-desktop" data-node-id="3149:272">
-              {user.address} · сегодня спокойно, {criticalAlertsCount} критическое оповещение
+              {user.address} · {alertsStatus}
             </p>
             <p className="home-topbar__status-mobile" data-node-id="3149:2358">
               <MapPin size={14} color="#008F82" strokeWidth={2.2} aria-hidden="true" />
               <span>
-                {user.address} · геолокация {user.geolocationEnabled ? 'вкл.' : 'выкл.'}
+                {user.address} ·{' '}
+                {hasLocation && user.geolocationEnabled
+                  ? 'геолокация вкл.'
+                  : geoStatus.toLowerCase()}
               </span>
             </p>
           </div>
@@ -261,6 +290,17 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
                 onMouseLeave={cancelHold}
                 onTouchStart={startHold}
                 onTouchEnd={cancelHold}
+                onTouchCancel={cancelHold}
+                onBlur={cancelHold}
+                onKeyDown={(e) => {
+                  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
+                    e.preventDefault();
+                    startHold();
+                  }
+                }}
+                onKeyUp={(e) => {
+                  if (e.key === ' ' || e.key === 'Enter') cancelHold();
+                }}
                 className={`home-sos-button ${
                   sosState === 'holding' ? 'home-sos-button--holding' : ''
                 }`}
@@ -284,8 +324,8 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
                 Нажмите и удерживайте 3 секунды
               </p>
               <p className="home-sos-mobile-copy__subtitle" data-node-id="3149:2375">
-                Сигнал с координатами уйдёт в 112 и экстренным контактам ({activeSosContacts.length}
-                )
+                Сообщение с координатами получат ваши контакты ({activeSosContacts.length}). В 112
+                сигнал не передаётся
               </p>
               <div className="home-sos-mobile-actions">
                 <button
@@ -310,9 +350,7 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
             {/* Десктопное описание справа от кнопки SOS */}
             <div className="home-sos-details" data-node-id="3149:146">
               <div className="home-sos-badge" data-node-id="3149:123">
-                <span>
-                  {user.geolocationEnabled ? 'Геолокация включена' : 'Геолокация отключена'}
-                </span>
+                <span>{geoStatus}</span>
               </div>
 
               <h2 className="home-sos-details__title" data-node-id="3149:124">
@@ -320,8 +358,8 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
               </h2>
 
               <p className="home-sos-details__desc" data-node-id="3149:125">
-                Нажмите и удерживайте кнопку 3 секунды. Сигнал с координатами уйдёт в 112 и вашим
-                экстренным контактам.
+                Нажмите и удерживайте кнопку 3 секунды. Сообщение с координатами получат ваши
+                экстренные контакты. В службу 112 сигнал не передаётся — позвоните туда сами.
               </p>
 
               <div className="home-sos-check" data-node-id="3149:131">
@@ -329,7 +367,8 @@ export default function HomePage({ user, services, alerts, contacts, onNavigate,
                   <Check size={14} color="#008F82" strokeWidth={2.5} aria-hidden="true" />
                 </div>
                 <span className="home-sos-check__text" data-node-id="3149:130">
-                  Координаты: {user.address} · точность {user.accuracyMeters} м
+                  Координаты: {user.address}
+                  {accuracyText}
                 </span>
               </div>
 

@@ -837,3 +837,39 @@
     gap: 12px;
   }
 }
+
+/* Ноутбук 1024–1280 px: список памяток уже, шапка и тело карточки переносятся в столбик */
+@media (min-width: 961px) and (max-width: 1280px) {
+  .guides-main {
+    padding: 28px 24px 40px 24px;
+  }
+
+  .guides-services-row {
+    gap: 10px;
+  }
+
+  .guides-list-card {
+    width: 260px;
+  }
+
+  .guides-detail-card {
+    padding: 22px;
+  }
+
+  .guides-detail-card__header {
+    flex-wrap: wrap;
+  }
+
+  .guides-detail-card__titles {
+    flex-basis: calc(100% - 140px);
+  }
+
+  .guides-detail-card__body {
+    flex-direction: column;
+  }
+
+  .guides-detail-card__donts {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

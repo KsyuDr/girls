@@ -678,3 +678,52 @@
     text-align: center;
   }
 }
+
+/* Ошибка в окне формы: окно не закрывается, текст остаётся */
+.contacts-dialog__error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background-color: var(--color-danger-light);
+  color: var(--color-danger);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.contacts-dialog__submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.contacts-empty {
+  margin: 0;
+  padding: 24px 20px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* Ноутбук 1024–1280 px: узкие фиксированные колонки, чтобы имени осталось место */
+@media (min-width: 961px) and (max-width: 1280px) {
+  .contacts-col--name {
+    min-width: 160px;
+  }
+
+  .contacts-col--relation {
+    width: 120px;
+  }
+
+  .contacts-col--phone {
+    width: 140px;
+  }
+
+  .contacts-col--toggle {
+    width: 110px;
+  }
+
+  .contacts-person__avatar {
+    flex-shrink: 0;
+  }
+}

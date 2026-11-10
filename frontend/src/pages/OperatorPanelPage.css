@@ -562,7 +562,6 @@
   min-height: 54px;
   padding: 0 20px;
   border-bottom: 1px solid #edf1f5;
-  cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
@@ -813,4 +812,44 @@
   .operator-table-row {
     min-width: 680px;
   }
+}
+
+/* Статус меняется явным выбором, а не кликом по строке */
+.operator-status-select {
+  max-width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 100px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+  cursor: pointer;
+}
+
+.operator-table-row--hidden {
+  opacity: 0.65;
+}
+
+.operator-sos-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border: 1px solid #e3e8ef;
+  border-radius: 14px;
+  background-color: #ffffff;
+  color: #6b7a89;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.operator-sos-banner__phone {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.operator-sos-banner__accept-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }

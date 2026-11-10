@@ -24,6 +24,7 @@ export default function ContactsPage({
   user,
   contacts = [],
   maxContacts = 5,
+  canModerate = false,
   onNavigate,
   onTriggerSos,
   onToggleContactSos,
@@ -36,6 +37,8 @@ export default function ContactsPage({
   const [newPhone, setNewPhone] = useState('');
   const [newReceivesSos, setNewReceivesSos] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [addError, setAddError] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const activeSosCount = contacts.filter((c) => c.receivesSos).length;
   const canAddMore = contacts.length < maxContacts;
@@ -46,6 +49,7 @@ export default function ContactsPage({
     setNewRelation('');
     setNewPhone('');
     setNewReceivesSos(true);
+    setAddError('');
     dialogRef.current?.showModal();
   };
 
@@ -59,16 +63,25 @@ export default function ContactsPage({
     }
   };
 
-  const handleAddSubmit = (e) => {
+  // Окно закрывается только после успеха; при ошибке введённое остаётся, ошибка видна в окне
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!newName.trim() || !newPhone.trim()) return;
-    onAddContact?.({
-      name: newName.trim(),
-      relation: newRelation.trim() || 'Близкий',
-      phone: newPhone.trim(),
-      receivesSos: newReceivesSos,
-    });
-    closeAddDialog();
+    setAdding(true);
+    setAddError('');
+    try {
+      await onAddContact?.({
+        name: newName.trim(),
+        relation: newRelation.trim() || 'Близкий',
+        phone: newPhone.trim(),
+        receivesSos: newReceivesSos,
+      });
+      closeAddDialog();
+    } catch (error) {
+      setAddError(error?.message || 'Не удалось добавить контакт');
+    } finally {
+      setAdding(false);
+    }
   };
 
   const navItems = [
@@ -78,7 +91,7 @@ export default function ContactsPage({
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   const handleNavClick = (id) => {
@@ -262,6 +275,12 @@ export default function ContactsPage({
               <div className="contacts-col contacts-col--actions" aria-hidden="true" />
             </div>
 
+            {contacts.length === 0 && (
+              <p className="contacts-empty">
+                Пока никого нет. Добавьте близких — они получат сообщение, когда вы нажмёте SOS.
+              </p>
+            )}
+
             {contacts.map((contact) => {
               const avatarBg = contact.receivesSos ? contact.avatarBg || '#007DA5' : '#6B7A89';
               return (
@@ -336,6 +355,9 @@ export default function ContactsPage({
             aria-label="Список экстренных контактов"
             data-node-id="3149:2612"
           >
+            {contacts.length === 0 && (
+              <p className="contacts-empty">Пока никого нет. Добавьте близких для SOS.</p>
+            )}
             {contacts.map((contact, idx) => {
               const avatarBg = contact.receivesSos ? contact.avatarBg || '#007DA5' : '#6B7A89';
               return (
@@ -544,12 +566,18 @@ export default function ContactsPage({
               <span>Отправлять сигнал SOS этому контакту</span>
             </label>
 
+            {addError && (
+              <p className="contacts-dialog__error" role="alert">
+                {addError}
+              </p>
+            )}
+
             <div className="contacts-dialog__actions">
               <button type="button" className="contacts-dialog__cancel" onClick={closeAddDialog}>
                 Отмена
               </button>
-              <button type="submit" className="contacts-dialog__submit">
-                Сохранить контакт
+              <button type="submit" disabled={adding} className="contacts-dialog__submit">
+                {adding ? 'Сохраняем...' : 'Сохранить контакт'}
               </button>
             </div>
           </form>

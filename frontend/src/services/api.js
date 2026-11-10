@@ -29,7 +29,7 @@ import {
  * иначе — с моками из src/mock/data.js и localStorage. Компоненты одинаковы в обоих режимах:
  * ответы сервера приводятся к форме моков в ./adapters.js.
  */
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const STORAGE_USER_KEY = 'safe_city_user';
@@ -115,22 +115,47 @@ async function request(path, { method = 'GET', body, form, fallback = 'Ошиб�
   return response.json();
 }
 
-/** Текущие координаты браузера; null, если геолокация недоступна или запрещена. */
-function getBrowserPosition(timeoutMs = 4000) {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null);
+/**
+ * Текущие координаты браузера: {position} или {error}, где error — 'denied' (запретили),
+ * 'unavailable' (нет GPS/сети, нет API) или 'timeout'.
+ */
+export function locate(timeoutMs = 4000) {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return Promise.resolve({ error: 'unavailable' });
+  }
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (pos) =>
         resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracyMeters: Math.round(pos.coords.accuracy),
+          position: {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracyMeters: Math.round(pos.coords.accuracy),
+          },
         }),
-      () => resolve(null),
+      (err) =>
+        resolve({
+          error: err?.code === 1 ? 'denied' : err?.code === 3 ? 'timeout' : 'unavailable',
+        }),
       { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 }
     );
   });
 }
+
+/** То же, но только координаты; null, если определить не удалось. */
+async function getBrowserPosition(timeoutMs = 4000) {
+  return (await locate(timeoutMs)).position ?? null;
+}
+
+/** Подсказка пользователю, что делать, если место определить не удалось. */
+export const LOCATION_HELP = {
+  denied:
+    'Доступ к геолокации запрещён. Разрешите его в настройках браузера (значок замка слева от адреса сайта) и нажмите кнопку ещё раз',
+  unavailable:
+    'Не удалось определить местоположение. Проверьте GPS и интернет и попробуйте ещё раз',
+  timeout:
+    'Местоположение определяется слишком долго. Выйдите на открытое место и попробуйте ещё раз',
+};
 
 async function fetchContacts() {
   const [contacts, active] = await Promise.all([request('/contacts'), request('/sos/active')]);
@@ -286,6 +311,16 @@ export async function registerUser(payload) {
   return { user: updatedUser, step: 2, smsSent: true };
 }
 
+/** Вход существующего пользователя: отправить код на номер. Возвращает {step: 2, phone}. */
+export async function loginUser(phone) {
+  if (USE_MOCK) return { user: INITIAL_USER };
+  return request('/auth/login', {
+    method: 'POST',
+    body: { phone },
+    fallback: 'Не удалось отправить код',
+  });
+}
+
 /** Шаг 2: проверить код из SMS, сохранить токен. Возвращает {user}. */
 export async function verifyCode(phone, code) {
   if (USE_MOCK) {
@@ -352,10 +387,16 @@ export async function getDashboardData() {
 
 // ---------- SOS ----------
 
-export async function sendSosSignal(coordinates) {
+// Отменённые в этой сессии сигналы: досылка координат не должна «воскресить» SOS
+const cancelledSos = new Set();
+
+/**
+ * Отправить SOS. С бэкендом сигнал уходит сразу, не дожидаясь GPS: координаты браузера
+ * определяются дальше и досылаются вторым запросом (onLocationUpdate получит обновлённый сигнал).
+ */
+export async function sendSosSignal(coordinates, { onLocationUpdate } = {}) {
   if (!USE_MOCK) {
-    const position = await getBrowserPosition();
-    const body = position ? { ...position } : {};
+    const body = {};
     if (
       coordinates?.address &&
       !['Местоположение неизвестно', 'Текущее местоположение'].includes(coordinates.address)
@@ -367,6 +408,7 @@ export async function sendSosSignal(coordinates) {
       body,
       fallback: 'Не удалось отправить сигнал SOS',
     });
+    refineSosLocation(sos.id, onLocationUpdate);
     return adaptSos(sos);
   }
 
@@ -375,7 +417,7 @@ export async function sendSosSignal(coordinates) {
   return {
     id: `sos_${Date.now()}`,
     status: 'active',
-    startedAt: Date.now() - 42 * 1000, // Стартуем с 00:42 как в макете, далее идёт живой секундомер
+    startedAt: Date.now(),
     notifiedContacts: contacts,
     address: coordinates?.address || INITIAL_USER.address,
     coordinates: coordinates?.coordinates || INITIAL_USER.coordinates,
@@ -383,17 +425,45 @@ export async function sendSosSignal(coordinates) {
   };
 }
 
+/** Досылает координаты, но только пока именно этот сигнал ещё активен (иначе создался бы новый). */
+async function refineSosLocation(sosId, onLocationUpdate) {
+  try {
+    const position = await getBrowserPosition();
+    if (!position || cancelledSos.has(sosId)) return;
+    const active = await request('/sos/active');
+    if (!active || active.id !== sosId || cancelledSos.has(sosId)) return;
+    const updated = await request('/sos', { method: 'POST', body: position });
+    if (updated.id === sosId) onLocationUpdate?.(adaptSos(updated));
+  } catch {
+    // сигнал уже отправлен; потеря уточнения не критична
+  }
+}
+
 export async function cancelSosSignal(sosId) {
   if (!USE_MOCK) {
-    const sos = await request(`/sos/${sosId || 'active'}/cancel`, {
-      method: 'POST',
-      fallback: 'Не удалось отменить сигнал SOS',
-    });
-    return adaptSos(sos);
+    cancelledSos.add(sosId);
+    try {
+      const sos = await request(`/sos/${sosId || 'active'}/cancel`, {
+        method: 'POST',
+        fallback: 'Не удалось отменить сигнал SOS',
+      });
+      return adaptSos(sos);
+    } catch (error) {
+      cancelledSos.delete(sosId); // отмена не прошла — сигнал активен, досылку можно продолжать
+      throw error;
+    }
   }
 
   await new Promise((resolve) => setTimeout(resolve, 150));
   return { status: 'cancelled' };
+}
+
+/** Модератор: «помощь пришла» — завершить SOS жителя. */
+export async function resolveSos(sosId) {
+  return request(`/moderation/sos/${sosId}/resolve`, {
+    method: 'POST',
+    fallback: 'Не удалось завершить сигнал SOS',
+  });
 }
 
 // ---------- экстренные контакты (возвращают весь список) ----------
@@ -514,39 +584,48 @@ export async function togglePushNotifications(enabled) {
 
 /**
  * Отправить метку и приложить фото (payload.photoFiles — массив File).
- * Возвращает {incident: {id: '#1049'}, incidents?} — incidents только модератору (для панели).
+ * Место: payload.coordinates ({lat, lng}) из формы, иначе координаты браузера, иначе последнее
+ * известное место профиля (его подставит сервер).
+ * Возвращает {incident: {id: '#1049'}, photoError?} — photoError, если метка создана, а фото нет.
  */
 export async function submitIncidentReport(payload) {
   if (!USE_MOCK) {
-    const position = await getBrowserPosition();
-    const incident = await request('/incidents', {
-      method: 'POST',
-      body: {
-        type: payload.typeId,
-        description: payload.description?.trim() || 'Без описания',
-        address: payload.address?.trim(),
-        isAnonymous: Boolean(payload.anonymous),
-        ...(position ? { lat: position.lat, lng: position.lng } : {}),
-      },
-      fallback: 'Не удалось отправить обращение',
-    });
+    const point = payload.coordinates || (await getBrowserPosition());
+    let incident;
+    try {
+      incident = await request('/incidents', {
+        method: 'POST',
+        body: {
+          type: payload.typeId,
+          description: payload.description?.trim(),
+          address: payload.address?.trim(),
+          isAnonymous: Boolean(payload.anonymous),
+          ...(point ? { lat: point.lat, lng: point.lng } : {}),
+        },
+        fallback: 'Не удалось отправить обращение',
+      });
+    } catch (error) {
+      if (error.status === 400 && /геолокаци/.test(error.message)) {
+        throw new ApiError(400, `Не удалось определить место. ${LOCATION_HELP.denied}`);
+      }
+      throw error;
+    }
 
+    const result = { incident: { id: `#${incident.id}`, rawId: incident.id } };
     const files = (payload.photoFiles || []).filter(Boolean);
     if (files.length > 0) {
       const form = new FormData();
       files.slice(0, 4).forEach((file) => form.append('files', file));
-      await request(`/incidents/${incident.id}/photos`, {
-        method: 'POST',
-        form,
-        fallback: 'Метка создана, но фото загрузить не удалось',
-      });
-    }
-
-    const result = { incident: { id: `#${incident.id}`, rawId: incident.id } };
-    try {
-      result.incidents = await fetchOperatorIncidents();
-    } catch {
-      // не модератор — список панели не нужен
+      try {
+        await request(`/incidents/${incident.id}/photos`, {
+          method: 'POST',
+          form,
+          fallback: 'Фото загрузить не удалось',
+        });
+      } catch (error) {
+        // метка уже создана — повторная отправка формы дала бы дубль
+        result.photoError = error.message;
+      }
     }
     return result;
   }
@@ -667,7 +746,7 @@ export async function createCityAlert(payload) {
     timeAgo: 'только что',
     detailedTime: `Сегодня, ${timeStr} · только что`,
     locationLabel: payload.locationLabel?.trim() || 'Весь город',
-    sourceLabel: payload.sourceLabel?.trim() || 'ЕДДС города',
+    sourceLabel: payload.sourceLabel?.trim() || 'Безопасный город',
     icon: cfg.icon,
     bgColor: cfg.bgColor,
     accentColor: cfg.accentColor,

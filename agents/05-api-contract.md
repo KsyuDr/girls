@@ -11,13 +11,15 @@
 
 | Функция api.js | Эндпоинт бэкенда | Этап |
 |---|---|---|
-| `registerUser` | `POST /auth/register`, затем `POST /auth/verify` | 1 |
+| `registerUser` | `POST /auth/register` (на 409 — `POST /auth/login`), затем `POST /auth/verify` | 1 |
+| `loginUser` | `POST /auth/login` (режим «Вход» на экране регистрации) | 8 |
 | `getDashboardData` | `GET /dashboard` (агрегат) | 8 |
 | `verifyCode` (новая) | `POST /auth/verify`, токен в `localStorage` | 8 |
 | `togglePushNotifications` | `PATCH /user/notifications` | 1 |
 | `addEmergencyContact`, `toggleContactSos`, `deleteEmergencyContact` | `POST /contacts`, `PATCH /contacts/{id}`, `DELETE /contacts/{id}` | 3 |
 | `submitIncidentReport` | `POST /incidents` + `POST /incidents/{id}/photos` | 4 |
-| `sendSosSignal`, `cancelSosSignal` | `POST /sos`, `POST /sos/{id}/cancel` | 5 |
+| `sendSosSignal`, `cancelSosSignal` | `POST /sos` (сразу, координаты досылаются вторым `POST /sos`), `POST /sos/{id}/cancel` | 5 |
+| `resolveSos` | `POST /moderation/sos/{id}/resolve` | 7 |
 | `createCityAlert` | `POST /alerts` | 6 |
 | `updateIncidentStatus` | `PATCH /moderation/incidents/{id}` | 7 |
 

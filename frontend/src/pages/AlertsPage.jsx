@@ -28,6 +28,7 @@ const FILTER_CHIPS = [
 export default function AlertsPage({
   user,
   alerts = [],
+  canModerate = false,
   onNavigate,
   onTriggerSos,
   onTogglePushNotifications,
@@ -76,7 +77,7 @@ export default function AlertsPage({
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   const handleNavClick = (id) => {
@@ -173,7 +174,7 @@ export default function AlertsPage({
               Оповещения
             </h1>
             <p className="alerts-topbar__subtitle" data-node-id="3149:1287">
-              МЧС, городские службы и администрация
+              Сообщения модераторов сервиса
             </p>
           </div>
 
@@ -441,7 +442,7 @@ export default function AlertsPage({
                 <div
                   className="alerts-detail-map__user-pin"
                   data-node-id="3149:1249"
-                  title={`Ваше местоположение: ${user?.address || 'ул. Малышева, 51'}`}
+                  title={`Ваше местоположение: ${user?.address || 'местоположение неизвестно'}`}
                 >
                   <div className="alerts-detail-map__user-dot" />
                 </div>

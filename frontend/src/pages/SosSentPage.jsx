@@ -18,20 +18,28 @@ import {
 } from 'lucide-react';
 import './SosSentPage.css';
 
+const DELIVERY_BADGES = {
+  sending: { label: 'Отправляется', className: 'sos-badge--blue' },
+  delivered: { label: 'Доставлено', className: 'sos-badge--gray' },
+  failed: { label: 'Не доставлено', className: 'sos-badge--red' },
+};
+
 export default function SosSentPage({
   user,
-  contacts,
+  canModerate = false,
   sosWaitingTips = [],
   sosSession,
   onCancelSos,
   onNavigate,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(() => {
     if (sosSession?.startedAt) {
       return Math.max(0, Math.floor((Date.now() - sosSession.startedAt) / 1000));
     }
-    return 42;
+    return 0;
   });
 
   useEffect(() => {
@@ -49,8 +57,29 @@ export default function SosSentPage({
   const seconds = String(elapsedSeconds % 60).padStart(2, '0');
   const formattedTimer = `${minutes}:${seconds}`;
 
-  const activeContacts = contacts.filter((c) => c.receivesSos);
-  const mobileSosContacts = activeContacts.slice(0, 2);
+  // Показываем тех, кому сигнал реально ушёл (из ответа сервера), а не текущий список контактов:
+  // контакт могли выключить или удалить уже после отправки
+  const recipients = sosSession?.notifiedContacts ?? [];
+  const mobileSosContacts = recipients.slice(0, 2);
+  const nobodyNotified = recipients.length === 0;
+  const address = sosSession?.address || user.address;
+  const coordinates = sosSession?.coordinates || user.coordinates;
+  const accuracy = sosSession?.accuracyMeters ?? user.accuracyMeters;
+  const accuracyText = typeof accuracy === 'number' ? ` · точность ${accuracy} м` : '';
+
+  // Экран закрывается только после подтверждения сервера; при ошибке сигнал остаётся активным
+  const handleCancel = async () => {
+    setCancelling(true);
+    setCancelError('');
+    try {
+      await onCancelSos?.();
+    } catch (error) {
+      setCancelError(
+        `${error?.message || 'Не удалось отменить SOS'}. Сигнал остаётся активным — попробуйте ещё раз.`
+      );
+      setCancelling(false);
+    }
+  };
 
   const navItems = [
     { id: 'home', label: 'Главная', icon: Home },
@@ -59,7 +88,7 @@ export default function SosSentPage({
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   const handleNavClick = (navId) => {
@@ -112,10 +141,11 @@ export default function SosSentPage({
         </div>
 
         <div className="sos-sidebar__bottom" data-node-id="3149:602">
-          <button type="button" className="sos-sidebar__sos-btn" data-node-id="3149:601">
-            <Siren size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-            <span>Экстренный вызов SOS</span>
-          </button>
+          {/* SOS уже активен — здесь полезнее позвонить в 112 */}
+          <a href="tel:112" className="sos-sidebar__sos-btn" data-node-id="3149:601">
+            <Phone size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
+            <span>Позвонить 112</span>
+          </a>
 
           <button
             type="button"
@@ -211,17 +241,20 @@ export default function SosSentPage({
 
           <div className="sos-banner__text" data-node-id="3149:381">
             <h2 className="sos-banner__title-desktop" data-node-id="3149:379">
-              Сигнал SOS отправлен · {formattedTimer}
+              {nobodyNotified ? 'Сигнал SOS создан' : 'Сигнал SOS отправлен'} · {formattedTimer}
             </h2>
             <h2 className="sos-banner__title-mobile" data-node-id="3149:2492">
-              Сигнал SOS отправлен
+              {nobodyNotified ? 'Сигнал SOS создан' : 'Сигнал SOS отправлен'}
             </h2>
             <p className="sos-banner__desc-desktop" data-node-id="3149:380">
-              Помощь уже в пути. Оставайтесь на месте, если это безопасно. Координаты обновляются
-              каждые 10 секунд.
+              {nobodyNotified
+                ? 'Сигнал никому не отправлен: у вас нет контактов для SOS. Позвоните 112 и добавьте контакты.'
+                : 'Ваши близкие получили сообщение с вашим местоположением. Служба 112 о сигнале не знает — если нужна помощь, позвоните туда сами. Оставайтесь на месте, если это безопасно.'}
             </p>
             <p className="sos-banner__desc-mobile" data-node-id="3149:2493">
-              Оставайтесь на месте, если это безопасно
+              {nobodyNotified
+                ? 'Сигнал никому не отправлен — позвоните 112'
+                : 'Близкие получили сообщение. Нужна служба — позвоните 112'}
             </p>
           </div>
 
@@ -233,14 +266,21 @@ export default function SosSentPage({
 
             <button
               type="button"
-              onClick={onCancelSos}
+              onClick={handleCancel}
+              disabled={cancelling}
               className="sos-banner__safe-btn"
               data-node-id="3149:388"
             >
-              <span>Я в безопасности</span>
+              <span>{cancelling ? 'Отменяем...' : 'Я в безопасности'}</span>
             </button>
           </div>
         </section>
+
+        {cancelError && (
+          <p className="sos-cancel-error" role="alert">
+            {cancelError}
+          </p>
+        )}
 
         {/* Основная сетка: Карта местоположения + Кому отправлено + Пока ждёте помощь */}
         <div className="sos-grid" data-node-id="3149:530">
@@ -250,9 +290,16 @@ export default function SosSentPage({
               <h3 className="sos-card-header__title" data-node-id="3149:392">
                 Ваше местоположение
               </h3>
-              <span className="sos-badge sos-badge--teal" data-node-id="3149:391">
-                <span className="sos-badge__desktop">Передаётся в 112</span>
-                <span className="sos-badge__mobile">Передаётся</span>
+              <span
+                className={`sos-badge ${nobodyNotified ? 'sos-badge--red' : 'sos-badge--teal'}`}
+                data-node-id="3149:391"
+              >
+                <span className="sos-badge__desktop">
+                  {nobodyNotified ? 'Никому не отправлено' : `Получили: ${recipients.length}`}
+                </span>
+                <span className="sos-badge__mobile">
+                  {nobodyNotified ? 'Никому' : `Получили: ${recipients.length}`}
+                </span>
               </span>
             </div>
 
@@ -298,10 +345,12 @@ export default function SosSentPage({
             <div className="sos-map-footer" data-node-id="3149:445">
               <MapPin size={18} color="#6B7A89" strokeWidth={2} aria-hidden="true" />
               <span className="sos-map-footer__desktop" data-node-id="3149:444">
-                {user.address}, {user.city} · {user.coordinates} · точность {user.accuracyMeters} м
+                {address}, {user.city} · {coordinates}
+                {accuracyText}
               </span>
               <span className="sos-map-footer__mobile" data-node-id="3149:2522">
-                {user.address} · точность {user.accuracyMeters} м
+                {address}
+                {accuracyText}
               </span>
             </div>
           </section>
@@ -314,21 +363,24 @@ export default function SosSentPage({
                 Кому отправлено
               </h3>
 
+              {nobodyNotified && (
+                <div className="sos-no-recipients" role="alert">
+                  <strong>Сигнал никому не отправлен</strong>
+                  <span>
+                    У вас нет контактов, которым отправляется SOS. Позвоните 112 или добавьте
+                    контакты.
+                  </span>
+                  <button type="button" onClick={() => onNavigate?.('contacts')}>
+                    Добавить контакты
+                  </button>
+                </div>
+              )}
+
               {/* Десктопный список получателей */}
               <div className="sos-recipients-list sos-recipients-list--desktop">
-                <div className="sos-recipient-row" data-node-id="3149:464">
-                  <div className="sos-recipient-row__avatar" style={{ backgroundColor: '#FDE7EC' }}>
-                    <Siren size={20} color="#ED0536" strokeWidth={2} aria-hidden="true" />
-                  </div>
-                  <div className="sos-recipient-row__info">
-                    <span className="sos-recipient-row__name">112 · Единая служба</span>
-                    <span className="sos-recipient-row__sub">Диспетчер принял сигнал</span>
-                  </div>
-                  <span className="sos-badge sos-badge--teal">Принято</span>
-                </div>
-
-                {activeContacts.map((contact) => {
-                  const isSending = contact.sosDeliveryStatus === 'sending';
+                {recipients.map((contact) => {
+                  const badge =
+                    DELIVERY_BADGES[contact.sosDeliveryStatus] || DELIVERY_BADGES.sending;
                   return (
                     <div key={contact.id} className="sos-recipient-row">
                       <div
@@ -340,14 +392,10 @@ export default function SosSentPage({
                       <div className="sos-recipient-row__info">
                         <span className="sos-recipient-row__name">{contact.name}</span>
                         <span className="sos-recipient-row__sub">
-                          {contact.relation} · {contact.notifyMethod || 'SMS и push'}
+                          {contact.relation} · {contact.notifyMethod || 'SMS'}
                         </span>
                       </div>
-                      <span
-                        className={`sos-badge ${isSending ? 'sos-badge--blue' : 'sos-badge--gray'}`}
-                      >
-                        {isSending ? 'Отправляется' : 'Доставлено'}
-                      </span>
+                      <span className={`sos-badge ${badge.className}`}>{badge.label}</span>
                     </div>
                   );
                 })}
@@ -355,33 +403,29 @@ export default function SosSentPage({
 
               {/* Мобильный компактный список получателей (как в макете iPhone 16) */}
               <div className="sos-recipients-list sos-recipients-list--mobile">
-                <div className="sos-recipient-row" data-node-id="3149:2540">
-                  <div
-                    className="sos-recipient-row__avatar sos-recipient-row__avatar--sm"
-                    style={{ backgroundColor: '#FDE7EC' }}
-                  >
-                    <Siren size={18} color="#ED0536" strokeWidth={2} aria-hidden="true" />
-                  </div>
-                  <span className="sos-recipient-row__name sos-recipient-row__name--flex">
-                    112 · Единая служба
-                  </span>
-                  <span className="sos-badge sos-badge--teal">Принято</span>
-                </div>
-
-                {mobileSosContacts.map((contact) => (
-                  <div key={contact.id} className="sos-recipient-row">
-                    <div
-                      className="sos-recipient-row__avatar sos-recipient-row__avatar--sm"
-                      style={{ backgroundColor: contact.avatarBg }}
-                    >
-                      <span>{contact.initials}</span>
+                {mobileSosContacts.map((contact) => {
+                  const badge =
+                    DELIVERY_BADGES[contact.sosDeliveryStatus] || DELIVERY_BADGES.sending;
+                  return (
+                    <div key={contact.id} className="sos-recipient-row">
+                      <div
+                        className="sos-recipient-row__avatar sos-recipient-row__avatar--sm"
+                        style={{ backgroundColor: contact.avatarBg }}
+                      >
+                        <span>{contact.initials}</span>
+                      </div>
+                      <span className="sos-recipient-row__name sos-recipient-row__name--flex">
+                        {contact.mobileShortLabel || contact.relation || contact.name}
+                      </span>
+                      <span className={`sos-badge ${badge.className}`}>{badge.label}</span>
                     </div>
-                    <span className="sos-recipient-row__name sos-recipient-row__name--flex">
-                      {contact.mobileShortLabel || contact.relation || contact.name}
-                    </span>
-                    <span className="sos-badge sos-badge--gray">Доставлено</span>
-                  </div>
-                ))}
+                  );
+                })}
+                {recipients.length > mobileSosContacts.length && (
+                  <span className="sos-recipient-row__sub">
+                    и ещё {recipients.length - mobileSosContacts.length}
+                  </span>
+                )}
               </div>
             </section>
 
@@ -413,11 +457,12 @@ export default function SosSentPage({
 
           <button
             type="button"
-            onClick={onCancelSos}
+            onClick={handleCancel}
+            disabled={cancelling}
             className="sos-mobile-actions__cancel-btn"
             data-node-id="3149:2560"
           >
-            <span>Я в безопасности — отменить</span>
+            <span>{cancelling ? 'Отменяем...' : 'Я в безопасности — отменить'}</span>
           </button>
         </div>
       </main>

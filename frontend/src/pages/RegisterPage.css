@@ -565,3 +565,23 @@
     display: none;
   }
 }
+
+/* Блок «Вы вошли как …» с выходом */
+.reg-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background-color: #e0f7f4;
+  color: var(--color-accent-dark);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.reg-session__actions {
+  display: flex;
+  gap: 16px;
+}

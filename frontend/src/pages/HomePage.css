@@ -1045,3 +1045,24 @@
     cursor: pointer;
   }
 }
+
+/* Ноутбук 1024–1280 px: карточки рядов друг под другом, иначе SOS и оповещения сжимаются в полоску */
+@media (min-width: 961px) and (max-width: 1280px) {
+  .home-main {
+    padding: 28px 24px;
+  }
+
+  .home-row {
+    flex-direction: column;
+  }
+
+  .home-services-card,
+  .home-contacts-card {
+    width: auto;
+  }
+
+  .home-sos-card {
+    padding: 24px;
+    gap: 28px;
+  }
+}

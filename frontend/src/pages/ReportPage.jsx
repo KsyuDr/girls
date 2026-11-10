@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   ShieldCheck,
   Home,
@@ -22,7 +22,12 @@ import {
   X,
   LayoutDashboard,
 } from 'lucide-react';
+import { locate, LOCATION_HELP } from '../services/api';
 import './ReportPage.css';
+
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const UNKNOWN_ADDRESSES = ['Местоположение неизвестно', 'Текущее местоположение'];
 
 const INCIDENT_ICONS = {
   flame: Flame,
@@ -37,6 +42,7 @@ export default function ReportPage({
   user,
   incidentTypes = [],
   reportNextSteps = [],
+  canModerate = false,
   onSubmitReport,
   onNavigate,
   onTriggerSos,
@@ -50,47 +56,111 @@ export default function ReportPage({
   const [submitting, setSubmitting] = useState(false);
   const [submittedIncident, setSubmittedIncident] = useState(null);
   const [submitError, setSubmitError] = useState('');
+  const [photoNote, setPhotoNote] = useState('');
+  const [photoError, setPhotoError] = useState('');
+  // Место метки: координаты из «Определить по геолокации» (иначе берутся при отправке)
+  const [coordinates, setCoordinates] = useState(null);
+  const [accuracy, setAccuracy] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
   const fileInputRef = useRef(null);
+
+  // Превью фото — blob-ссылки: освобождаем при удалении и уходе со страницы
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+  useEffect(
+    () => () => {
+      photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.url));
+    },
+    []
+  );
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = '';
     if (files.length === 0) return;
 
-    const newPhotos = files.slice(0, 4 - photos.length).map((file, idx) => ({
+    const skipped = [];
+    const accepted = files.filter((file) => {
+      const ok = PHOTO_TYPES.includes(file.type) && file.size <= MAX_PHOTO_BYTES;
+      if (!ok) skipped.push(file.name);
+      return ok;
+    });
+    setPhotoNote(
+      skipped.length > 0
+        ? `Не добавлено: ${skipped.join(', ')}. Подходят фото JPG, PNG и WebP до 5 МБ`
+        : ''
+    );
+
+    const newPhotos = accepted.slice(0, 4 - photos.length).map((file, idx) => ({
       id: `ph_${Date.now()}_${idx}`,
       name: file.name,
       url: URL.createObjectURL(file),
       file,
     }));
     setPhotos((prev) => [...prev, ...newPhotos].slice(0, 4));
-    e.target.value = '';
   };
 
   const handleRemovePhoto = (photoId) => {
+    const removed = photos.find((p) => p.id === photoId);
+    if (removed) URL.revokeObjectURL(removed.url);
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
   };
 
-  const handleFillGeolocation = () => {
-    setAddress(user?.address || 'ул. Малышева, 51');
+  // Настоящая геолокация: запоминаем координаты (они уйдут вместе с меткой)
+  const handleLocate = async () => {
+    setLocating(true);
+    setLocationError('');
+    const { position, error } = await locate(8000);
+    setLocating(false);
+    if (!position) {
+      setLocationError(LOCATION_HELP[error] || LOCATION_HELP.unavailable);
+      return;
+    }
+    setCoordinates({ lat: position.lat, lng: position.lng });
+    setAccuracy(position.accuracyMeters);
+    const knownAddress = user?.address && !UNKNOWN_ADDRESSES.includes(user.address);
+    if (!address.trim() && knownAddress) setAddress(user.address);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const trimmedAddress = address.trim();
+    const trimmedDescription = description.trim();
+    if (trimmedAddress.length < 3) {
+      setSubmitError('Укажите адрес или ориентир — хотя бы 3 символа');
+      return;
+    }
+    if (trimmedDescription.length < 3) {
+      setSubmitError('Опишите, что произошло — хотя бы 3 символа');
+      return;
+    }
     setSubmitting(true);
     setSubmitError('');
     try {
       const result = await onSubmitReport?.({
         typeId: selectedTypeId,
-        address: address.trim() || user?.address || 'ул. Малышева, 51',
-        description: description.trim(),
+        address: trimmedAddress,
+        description: trimmedDescription,
         anonymous,
+        coordinates,
         photosCount: photos.length,
         photoFiles: photos.map((p) => p.file),
       });
-      setSubmittedIncident(result?.incident || { id: '#1049' });
+      setSubmittedIncident(result?.incident || null);
+      setPhotoError(result?.photoError || '');
       setDescription('');
+      setAddress('');
+      setCoordinates(null);
+      setAccuracy(null);
+      setLocationError('');
+      setPhotoNote('');
+      photos.forEach((photo) => URL.revokeObjectURL(photo.url));
       setPhotos([]);
     } catch (error) {
+      // поля не очищаем: человек правит и отправляет снова
       setSubmitError(error.message || 'Не удалось отправить обращение');
     } finally {
       setSubmitting(false);
@@ -104,7 +174,7 @@ export default function ReportPage({
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   return (
@@ -197,7 +267,7 @@ export default function ReportPage({
               Сообщить о происшествии
             </h1>
             <p className="report-topbar__subtitle" data-node-id="3149:1832">
-              Сообщение получит диспетчер ЕДДС города
+              Метку увидят другие жители на карте
             </p>
           </div>
 
@@ -269,16 +339,26 @@ export default function ReportPage({
                   <Check size={18} color="#008F82" strokeWidth={2.5} aria-hidden="true" />
                 </div>
                 <div className="report-success-banner__body">
-                  <strong>Обращение {submittedIncident.id} передано диспетчеру ЕДДС</strong>
-                  <span>Статус обновится в уведомлениях и в панели дежурных служб.</span>
+                  <strong>Метка {submittedIncident.id} добавлена на карту</strong>
+                  <span>
+                    Её видят другие жители. Служба 112 о ней не знает — при опасности звоните сами.
+                  </span>
+                  {photoError && (
+                    <span className="report-submit-error" role="alert">
+                      Метка создана, но фото не загрузились: {photoError}. Отправлять форму ещё раз
+                      не нужно — будет дубль.
+                    </span>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('operator')}
-                  className="report-success-banner__link"
-                >
-                  Открыть панель служб
-                </button>
+                {canModerate && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('operator')}
+                    className="report-success-banner__link"
+                  >
+                    Открыть панель модератора
+                  </button>
+                )}
               </div>
             )}
 
@@ -341,22 +421,35 @@ export default function ReportPage({
               <div className="report-address-hint" data-node-id="3149:1748">
                 <button
                   type="button"
-                  onClick={handleFillGeolocation}
+                  onClick={handleLocate}
+                  disabled={locating}
                   className="report-address-hint__geo-btn"
                   data-node-id="3149:1746"
                 >
-                  Определено по геолокации ({user?.address || 'ул. Малышева, 51'})
-                </button>
-                <span aria-hidden="true">·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('map')}
-                  className="report-address-hint__map-link"
-                  data-node-id="3149:1747"
-                >
-                  Изменить на карте
+                  {locating
+                    ? 'Определяем место…'
+                    : coordinates
+                      ? 'Определить заново'
+                      : 'Определить по геолокации'}
                 </button>
               </div>
+              {coordinates && (
+                <p className="report-location-note">
+                  Место определено по геолокации
+                  {typeof accuracy === 'number' ? ` (точность ${accuracy} м)` : ''}. Уточните адрес
+                  или ориентир словами.
+                </p>
+              )}
+              {!coordinates && !locationError && user?.hasLocation === false && (
+                <p className="report-location-note">
+                  Чтобы метка попала на карту, нужно место: нажмите «Определить по геолокации».
+                </p>
+              )}
+              {locationError && (
+                <p className="report-submit-error" role="alert">
+                  {locationError}
+                </p>
+              )}
             </div>
 
             {/* Поле: Описание */}
@@ -382,16 +475,16 @@ export default function ReportPage({
             {/* Фото или видео */}
             <div className="report-field" data-node-id="3149:1776">
               <span className="report-field__label" data-node-id="3149:1754">
-                Фото или видео
+                Фото
               </span>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,video/*"
+                accept="image/jpeg,image/png,image/webp"
                 multiple
                 onChange={handleFileChange}
                 className="report-file-hidden"
-                aria-label="Прикрепить фото или видео"
+                aria-label="Прикрепить фото"
               />
               <div className="report-photos-row" data-node-id="3149:1775">
                 {photos.map((photo) => (
@@ -460,7 +553,7 @@ export default function ReportPage({
                   Отправить анонимно
                 </span>
                 <span className="report-anon-card__subtitle" data-node-id="3149:1778">
-                  Диспетчер не увидит ваше имя и телефон
+                  Другие жители не увидят ваше имя. Модератор сервиса видит автора
                 </span>
               </div>
               <button
@@ -475,6 +568,12 @@ export default function ReportPage({
                 <span className="report-switch__thumb" />
               </button>
             </div>
+
+            {photoNote && (
+              <p className="report-location-note" role="status">
+                {photoNote}
+              </p>
+            )}
 
             {/* Кнопки отправки */}
             <div className="report-actions" data-node-id="3149:1791">

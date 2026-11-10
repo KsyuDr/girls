@@ -774,3 +774,16 @@
     box-shadow: 0 2px 8px rgba(0, 60, 84, 0.06);
   }
 }
+
+/* Подсказка про место под полем адреса */
+.report-location-note {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.report-address-hint__geo-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

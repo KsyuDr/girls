@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   ShieldCheck,
   FileText,
@@ -35,20 +35,45 @@ const STATUS_BADGE_STYLES = {
   new: { bg: '#FDE7EC', color: '#ED0536', label: 'Новое' },
   in_progress: { bg: '#E5F2F7', color: '#007DA5', label: 'В работе' },
   closed: { bg: '#E0F7F4', color: '#008F82', label: 'Закрыто' },
+  hidden: { bg: '#EDF1F5', color: '#6B7A89', label: 'Скрыто' },
 };
 
+const STATUS_OPTIONS = ['new', 'in_progress', 'closed', 'hidden'];
+
+// Порядок переключения фильтра таблицы
+const NEXT_FILTER = { all: 'new', new: 'in_progress', in_progress: 'hidden', hidden: 'all' };
+const FILTER_LABELS = {
+  all: 'Все обращения',
+  new: 'Только новые (дальше)',
+  in_progress: 'В работе (дальше)',
+  hidden: 'Скрытые (сбросить)',
+};
+
+function sinceLabel(startedAt, now) {
+  const minutes = Math.max(0, Math.floor((now - startedAt) / 60000));
+  return minutes < 1 ? 'только что' : `${minutes} мин назад`;
+}
+
 export default function OperatorPanelPage({
-  user,
   operatorProfile,
   incidents = [],
+  sosSignals = [],
   stats = null,
   onUpdateIncidentStatus,
+  onResolveSos,
   onCreateAlert,
   onNavigate,
 }) {
   const [activeTab, setActiveTab] = useState('incidents'); // 'incidents' | 'sos' | 'reports'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'new' | 'in_progress'
-  const [sosAccepted, setSosAccepted] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'new' | 'in_progress' | 'hidden'
+  const [resolvingId, setResolvingId] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  // «Сигнал N мин назад» и «за последний час» пересчитываем раз в полминуты
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Поля модального окна «Создать оповещение» (пустые по умолчанию, только с подсказками placeholder)
   const alertDialogRef = useRef(null);
@@ -57,14 +82,22 @@ export default function OperatorPanelPage({
   const [alertLocation, setAlertLocation] = useState('');
   const [alertSource, setAlertSource] = useState('');
   const [alertLevel, setAlertLevel] = useState('critical');
+  const [alertError, setAlertError] = useState('');
+  const [alertSubmitting, setAlertSubmitting] = useState(false);
 
   const newCount = incidents.filter((inc) => inc.status === 'new').length;
   const inProgressCount = incidents.filter((inc) => inc.status === 'in_progress').length;
 
-  // С бэкендом (есть stats) показываем настоящие числа. В режиме моков — как в макете:
+  // С бэкендом (есть stats) показываем настоящие числа с сервера. В режиме моков — как в макете:
   // 12 новых и 8 в работе, плюс динамика добавленных обращений
-  const displayedNewCount = stats ? newCount : Math.max(12, 10 + newCount);
-  const displayedInProgressCount = stats ? inProgressCount : Math.max(8, 6 + inProgressCount);
+  const displayedNewCount = stats ? stats.newIncidents : Math.max(12, 10 + newCount);
+  const displayedInProgressCount = stats ? stats.inProgress : Math.max(8, 6 + inProgressCount);
+  const sosCount = stats ? stats.activeSos : sosSignals.length;
+  const lastHourCount = incidents.filter(
+    (inc) => inc.createdAt && now - Date.parse(inc.createdAt) < 60 * 60 * 1000
+  ).length;
+  const newFooter = stats ? `+${lastHourCount} за последний час` : '+4 за последний час';
+  const inProgressFooter = stats ? `Всего обращений: ${incidents.length}` : '3 службы на выезде';
   const reactionLabel = stats
     ? stats.avgReactionMinutes === null
       ? '—'
@@ -83,14 +116,33 @@ export default function OperatorPanelPage({
   const visibleIncidents =
     statusFilter === 'all' ? incidents : incidents.filter((inc) => inc.status === statusFilter);
 
-  const handleCycleStatus = (incident) => {
-    const nextStatus =
-      incident.status === 'new'
-        ? 'in_progress'
-        : incident.status === 'in_progress'
-          ? 'closed'
-          : 'new';
+  // Статус выбирается явно; «Скрыть», «Закрыть» и возврат скрытой метки — с подтверждением
+  const handleStatusChange = (incident, nextStatus) => {
+    if (nextStatus === incident.status) return;
+    let question = '';
+    if (nextStatus === 'hidden') {
+      question = `Скрыть метку ${incident.id}? Она пропадёт с карты у всех жителей.`;
+    } else if (incident.status === 'hidden') {
+      question = `Вернуть метку ${incident.id} на карту? Её снова увидят все жители.`;
+    } else if (nextStatus === 'closed') {
+      question = `Закрыть обращение ${incident.id}? Отклики помощников будут отмечены выполненными.`;
+    }
+    if (question && !window.confirm(question)) return;
     onUpdateIncidentStatus?.(incident.id, nextStatus);
+  };
+
+  const handleResolve = async (sos) => {
+    if (
+      !window.confirm(`Отметить, что помощь пришла (${sos.userName})? Сигнал SOS будет закрыт.`)
+    ) {
+      return;
+    }
+    setResolvingId(sos.id);
+    try {
+      await onResolveSos?.(sos.id);
+    } finally {
+      setResolvingId(null);
+    }
   };
 
   const openAlertDialog = () => {
@@ -99,6 +151,7 @@ export default function OperatorPanelPage({
     setAlertLocation('');
     setAlertSource('');
     setAlertLevel('critical');
+    setAlertError('');
     alertDialogRef.current?.showModal();
   };
 
@@ -115,19 +168,28 @@ export default function OperatorPanelPage({
   const handleCreateAlertSubmit = async (e) => {
     e.preventDefault();
     if (!alertTitle.trim() || !alertDescription.trim()) return;
-    await onCreateAlert?.({
-      title: alertTitle.trim(),
-      description: alertDescription.trim(),
-      locationLabel: alertLocation.trim() || 'Весь город',
-      sourceLabel: alertSource.trim() || 'ЕДДС города',
-      level: alertLevel,
-    });
-    closeAlertDialog();
+    setAlertSubmitting(true);
+    setAlertError('');
+    try {
+      await onCreateAlert?.({
+        title: alertTitle.trim(),
+        description: alertDescription.trim(),
+        locationLabel: alertLocation.trim() || 'Весь город',
+        sourceLabel: alertSource.trim(), // пусто — в ленте будет «Безопасный город»
+        level: alertLevel,
+      });
+      closeAlertDialog();
+    } catch (error) {
+      // окно остаётся открытым, введённый текст не теряется
+      setAlertError(error?.message || 'Не удалось опубликовать оповещение');
+    } finally {
+      setAlertSubmitting(false);
+    }
   };
 
   return (
     <div className="operator-layout" data-node-id="3149:2216">
-      {/* Боковая панель диспетчера (Десктоп MacBook Pro 14" · 3149:2282) */}
+      {/* Боковая панель модератора (Десктоп MacBook Pro 14" · 3149:2282) */}
       <aside className="operator-sidebar" data-node-id="3149:2282">
         <div className="operator-sidebar__top" data-node-id="3149:2274">
           <div className="operator-sidebar__logo" data-node-id="3149:2226">
@@ -139,14 +201,14 @@ export default function OperatorPanelPage({
                 Безопасный город
               </span>
               <span className="operator-sidebar__subtitle" data-node-id="3149:2224">
-                Панель служб
+                Панель модератора
               </span>
             </div>
           </div>
 
           <nav
             className="operator-sidebar__nav"
-            aria-label="Навигация диспетчера"
+            aria-label="Навигация модератора"
             data-node-id="3149:2273"
           >
             <button
@@ -201,7 +263,7 @@ export default function OperatorPanelPage({
                 className="operator-sidebar__badge operator-sidebar__badge--red"
                 data-node-id="3149:2257"
               >
-                {sosAccepted ? 1 : 2}
+                {sosCount}
               </span>
             </button>
 
@@ -251,14 +313,14 @@ export default function OperatorPanelPage({
 
           <div className="operator-sidebar__profile" data-node-id="3149:2280">
             <div className="operator-sidebar__avatar" data-node-id="3149:2276">
-              <span>{operatorProfile?.initials || 'ИА'}</span>
+              <span>{operatorProfile?.initials || 'М'}</span>
             </div>
             <div className="operator-sidebar__profile-info" data-node-id="3149:2279">
               <span className="operator-sidebar__profile-name" data-node-id="3149:2277">
-                {operatorProfile?.name || 'Иванов А. П.'}
+                {operatorProfile?.name || 'Модератор'}
               </span>
               <span className="operator-sidebar__profile-role" data-node-id="3149:2278">
-                {operatorProfile?.role || 'Диспетчер ЕДДС · на смене'}
+                {operatorProfile?.role || 'Модератор'}
               </span>
             </div>
           </div>
@@ -284,7 +346,7 @@ export default function OperatorPanelPage({
               </h1>
             </div>
             <p className="operator-topbar__subtitle" data-node-id="3149:2211">
-              {operatorProfile?.dateSubtitle || 'Сегодня, 5 ноября · обновлено только что'}
+              {operatorProfile?.dateSubtitle}
             </p>
           </div>
 
@@ -312,7 +374,7 @@ export default function OperatorPanelPage({
             </button>
 
             <div className="operator-topbar__avatar" data-node-id="3149:2209">
-              {operatorProfile?.initials || 'ИА'}
+              {operatorProfile?.initials || 'М'}
             </div>
           </div>
         </header>
@@ -342,7 +404,7 @@ export default function OperatorPanelPage({
               className="operator-metric-card__footer operator-metric-card__footer--teal"
               data-node-id="3149:1935"
             >
-              +4 за последний час
+              {newFooter}
             </div>
           </article>
 
@@ -362,7 +424,7 @@ export default function OperatorPanelPage({
               {displayedInProgressCount}
             </div>
             <div className="operator-metric-card__footer" data-node-id="3149:1945">
-              3 службы на выезде
+              {inProgressFooter}
             </div>
           </article>
 
@@ -382,7 +444,7 @@ export default function OperatorPanelPage({
               className="operator-metric-card__value operator-metric-card__value--red"
               data-node-id="3149:1960"
             >
-              {sosAccepted ? 1 : 2}
+              {sosCount}
             </div>
             <div
               className="operator-metric-card__footer operator-metric-card__footer--red"
@@ -420,56 +482,59 @@ export default function OperatorPanelPage({
         <div className="operator-content-row" data-node-id="3149:2215">
           {/* Левая колонка (764px · 3149:2133) */}
           <div className="operator-left-col" data-node-id="3149:2133">
-            {/* Баннер активного SOS (3149:1995) */}
-            <section
-              className="operator-sos-banner"
-              aria-label="Активный сигнал SOS"
-              data-node-id="3149:1995"
-            >
-              <div className="operator-sos-banner__icon" data-node-id="3149:1983">
-                <Siren size={22} color="#FFFFFF" strokeWidth={2.2} aria-hidden="true" />
-              </div>
-
-              <div className="operator-sos-banner__info" data-node-id="3149:1986">
-                <span className="operator-sos-banner__title" data-node-id="3149:1984">
-                  Активный SOS · {user?.name || 'Полина Исупова'}
-                </span>
-                <span className="operator-sos-banner__sub" data-node-id="3149:1985">
-                  {user?.address || 'ул. Малышева, 51'} · точность {user?.accuracyMeters || 8} м ·
-                  сигнал 00:42 назад
-                </span>
-              </div>
-
-              <div className="operator-sos-banner__actions">
-                <button
-                  type="button"
-                  onClick={() => setSosAccepted((prev) => !prev)}
-                  className={`operator-sos-banner__accept-btn ${
-                    sosAccepted ? 'operator-sos-banner__accept-btn--accepted' : ''
-                  }`}
-                  data-node-id="3149:1988"
+            {/* Активные SOS жителей (настоящие сигналы с сервера) */}
+            {sosSignals.length === 0 ? (
+              <section className="operator-sos-empty" aria-label="Активные сигналы SOS">
+                <Siren size={20} color="#6B7A89" strokeWidth={2} aria-hidden="true" />
+                <span>Активных сигналов SOS нет</span>
+              </section>
+            ) : (
+              sosSignals.map((sos) => (
+                <section
+                  key={sos.id}
+                  className="operator-sos-banner"
+                  aria-label={`Активный сигнал SOS: ${sos.userName}`}
                 >
-                  {sosAccepted ? (
-                    <>
+                  <div className="operator-sos-banner__icon">
+                    <Siren size={22} color="#FFFFFF" strokeWidth={2.2} aria-hidden="true" />
+                  </div>
+
+                  <div className="operator-sos-banner__info">
+                    <span className="operator-sos-banner__title">
+                      Активный SOS · {sos.userName}
+                    </span>
+                    <span className="operator-sos-banner__sub">
+                      {sos.address} ·{' '}
+                      <a href={`tel:${sos.phone}`} className="operator-sos-banner__phone">
+                        {sos.displayPhone}
+                      </a>{' '}
+                      · {sinceLabel(sos.startedAt, now)} · получили контактов: {sos.notifiedCount}
+                    </span>
+                  </div>
+
+                  <div className="operator-sos-banner__actions">
+                    <button
+                      type="button"
+                      onClick={() => handleResolve(sos)}
+                      disabled={resolvingId === sos.id}
+                      className="operator-sos-banner__accept-btn"
+                    >
                       <Check size={16} color="#FFFFFF" strokeWidth={2.5} aria-hidden="true" />
-                      <span>Принято</span>
-                    </>
-                  ) : (
-                    <span>Принять</span>
-                  )}
-                </button>
+                      <span>{resolvingId === sos.id ? 'Закрываем...' : 'Помощь пришла'}</span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('map')}
-                  className="operator-sos-banner__map-btn"
-                  data-node-id="3149:1994"
-                >
-                  <MapPin size={18} color="#007DA5" strokeWidth={2} aria-hidden="true" />
-                  <span>На карте</span>
-                </button>
-              </div>
-            </section>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('map')}
+                      className="operator-sos-banner__map-btn"
+                    >
+                      <MapPin size={18} color="#007DA5" strokeWidth={2} aria-hidden="true" />
+                      <span>На карте</span>
+                    </button>
+                  </div>
+                </section>
+              ))
+            )}
 
             {/* Заголовок секции «Обращения жителей» */}
             <div className="operator-section-header" data-node-id="3149:2132">
@@ -478,19 +543,11 @@ export default function OperatorPanelPage({
               </h2>
               <button
                 type="button"
-                onClick={() =>
-                  setStatusFilter((prev) =>
-                    prev === 'all' ? 'new' : prev === 'new' ? 'in_progress' : 'all'
-                  )
-                }
+                onClick={() => setStatusFilter((prev) => NEXT_FILTER[prev] || 'all')}
                 className="operator-section-header__link"
                 data-node-id="3149:2130"
               >
-                {statusFilter === 'all'
-                  ? 'Все обращения'
-                  : statusFilter === 'new'
-                    ? 'Только новые (сбросить)'
-                    : 'В работе (сбросить)'}
+                {FILTER_LABELS[statusFilter]}
               </button>
             </div>
 
@@ -502,7 +559,7 @@ export default function OperatorPanelPage({
                 <div className="operator-col operator-col--address">АДРЕС</div>
                 <div className="operator-col operator-col--time">ВРЕМЯ</div>
                 <div className="operator-col operator-col--status">СТАТУС</div>
-                <div className="operator-col operator-col--service">СЛУЖБА</div>
+                <div className="operator-col operator-col--service">ЗАМЕТКА</div>
               </div>
 
               {visibleIncidents.map((inc) => {
@@ -513,9 +570,9 @@ export default function OperatorPanelPage({
                 return (
                   <div
                     key={inc.id}
-                    className="operator-table-row"
-                    onClick={() => handleCycleStatus(inc)}
-                    title="Нажмите на строку, чтобы изменить статус обращения"
+                    className={`operator-table-row ${
+                      inc.status === 'hidden' ? 'operator-table-row--hidden' : ''
+                    }`}
                   >
                     <div className="operator-col operator-col--id operator-cell-id">{inc.id}</div>
 
@@ -538,15 +595,19 @@ export default function OperatorPanelPage({
                     </div>
 
                     <div className="operator-col operator-col--status">
-                      <span
-                        className="operator-status-badge"
-                        style={{
-                          backgroundColor: badgeCfg.bg,
-                          color: badgeCfg.color,
-                        }}
+                      <select
+                        className="operator-status-select"
+                        value={inc.status}
+                        onChange={(e) => handleStatusChange(inc, e.target.value)}
+                        aria-label={`Статус обращения ${inc.id}`}
+                        style={{ backgroundColor: badgeCfg.bg, color: badgeCfg.color }}
                       >
-                        {badgeCfg.label}
-                      </span>
+                        {STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>
+                            {STATUS_BADGE_STYLES[status].label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="operator-col operator-col--service operator-cell-service">
@@ -729,7 +790,7 @@ export default function OperatorPanelPage({
                 type="text"
                 value={alertSource}
                 onChange={(e) => setAlertSource(e.target.value)}
-                placeholder="МЧС России, ГИБДД, Администрация..."
+                placeholder="Необязательно. Без источника будет «Безопасный город»"
                 className="contacts-dialog__input"
               />
             </div>
@@ -749,12 +810,18 @@ export default function OperatorPanelPage({
               />
             </div>
 
+            {alertError && (
+              <p className="contacts-dialog__error" role="alert">
+                {alertError}
+              </p>
+            )}
+
             <div className="contacts-dialog__actions">
               <button type="button" onClick={closeAlertDialog} className="contacts-dialog__cancel">
                 Отмена
               </button>
-              <button type="submit" className="contacts-dialog__submit">
-                Опубликовать
+              <button type="submit" disabled={alertSubmitting} className="contacts-dialog__submit">
+                {alertSubmitting ? 'Публикуем...' : 'Опубликовать'}
               </button>
             </div>
           </form>

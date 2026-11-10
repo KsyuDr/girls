@@ -19,7 +19,6 @@ import {
   Phone,
   Filter,
   LayoutDashboard,
-  Check,
 } from 'lucide-react';
 import './MapPage.css';
 
@@ -31,14 +30,29 @@ const PLACE_ICONS = {
   flame: Flame,
 };
 
-export default function MapPage({ user, categories = [], places = [], onNavigate, onTriggerSos }) {
+function hasCoordinates(place) {
+  return typeof place?.lat === 'number' && typeof place?.lng === 'number';
+}
+
+// Настоящая карта OpenStreetMap с отметкой места (передаётся только точка назначения)
+function osmUrl(place) {
+  return `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=17/${place.lat}/${place.lng}`;
+}
+
+export default function MapPage({
+  user,
+  categories = [],
+  places = [],
+  canModerate = false,
+  onNavigate,
+  onTriggerSos,
+}) {
   const [topSearch, setTopSearch] = useState('');
   const [placeSearch, setPlaceSearch] = useState('');
   // null означает «показаны все категории» (в макете по умолчанию чип «Опасные места» подсвечен, но в списке видны все 5 мест)
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState(places[0]?.id || 'plc_1');
   const [zoom, setZoom] = useState(1);
-  const [routeActiveId, setRouteActiveId] = useState(null);
 
   const combinedQuery = (placeSearch || topSearch).trim().toLowerCase();
 
@@ -66,7 +80,6 @@ export default function MapPage({ user, categories = [], places = [], onNavigate
   const handleZoomOut = () => setZoom((z) => Math.max(0.85, +(z - 0.15).toFixed(2)));
   const handleResetView = () => {
     setZoom(1);
-    setRouteActiveId(null);
   };
 
   const navItems = [
@@ -76,7 +89,7 @@ export default function MapPage({ user, categories = [], places = [], onNavigate
     { id: 'report', label: 'Сообщить', icon: TriangleAlert },
     { id: 'contacts', label: 'Контакты', icon: Users },
     { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    { id: 'operator', label: 'Панель служб', icon: LayoutDashboard },
+    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
   const getPlacesCountLabel = (count) => {
@@ -388,26 +401,6 @@ export default function MapPage({ user, categories = [], places = [], onNavigate
               <div className="map-road map-road--v1" aria-hidden="true" />
               <div className="map-road map-road--v2" aria-hidden="true" />
 
-              {/* Линия маршрута при активации кнопки «Маршрут» */}
-              {routeActiveId && selectedPlace && (
-                <svg
-                  className="map-route-svg"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  <line
-                    x1="46"
-                    y1="57"
-                    x2={parseFloat(selectedPlace.desktopPos.left)}
-                    y2={parseFloat(selectedPlace.desktopPos.top)}
-                    stroke="#007DA5"
-                    strokeWidth="0.9"
-                    strokeDasharray="2.2 1.4"
-                  />
-                </svg>
-              )}
-
               {/* Радиус опасной зоны */}
               <div
                 className="map-danger-zone"
@@ -420,7 +413,7 @@ export default function MapPage({ user, categories = [], places = [], onNavigate
               <div
                 className="map-user-location"
                 style={{ left: '46%', top: '57%' }}
-                title={`Вы здесь: ${user?.address || 'ул. Малышева, 51'}`}
+                title={`Вы здесь: ${user?.address || 'местоположение неизвестно'}`}
                 data-node-id="3149:1526"
               >
                 <div className="map-user-location__pulse" />
@@ -471,28 +464,18 @@ export default function MapPage({ user, categories = [], places = [], onNavigate
                 <p className="map-popup-card__address" data-node-id="3149:1555">
                   {selectedPlace.shortMeta}
                 </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRouteActiveId((prev) =>
-                      prev === selectedPlace.id ? null : selectedPlace.id
-                    )
-                  }
-                  className="map-popup-card__route-btn"
-                  data-node-id="3149:1562"
-                >
-                  {routeActiveId === selectedPlace.id ? (
-                    <>
-                      <Check size={18} color="#FFFFFF" strokeWidth={2.2} aria-hidden="true" />
-                      <span>Маршрут построен ({selectedPlace.walkTimeLabel})</span>
-                    </>
-                  ) : (
-                    <>
-                      <Navigation size={18} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-                      <span>Маршрут</span>
-                    </>
-                  )}
-                </button>
+                {hasCoordinates(selectedPlace) && (
+                  <a
+                    href={osmUrl(selectedPlace)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="map-popup-card__route-btn"
+                    data-node-id="3149:1562"
+                  >
+                    <Navigation size={18} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
+                    <span>Открыть на карте OSM</span>
+                  </a>
+                )}
               </div>
             )}
 
@@ -618,21 +601,18 @@ export default function MapPage({ user, categories = [], places = [], onNavigate
                 </div>
 
                 <div className="map-mobile-sheet__actions" data-node-id="3149:3089">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setRouteActiveId((prev) =>
-                        prev === selectedPlace.id ? null : selectedPlace.id
-                      )
-                    }
-                    className="map-mobile-sheet__route-btn"
-                    data-node-id="3149:3082"
-                  >
-                    <Navigation size={18} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-                    <span>
-                      {routeActiveId === selectedPlace.id ? 'Маршрут активен' : 'Маршрут'}
-                    </span>
-                  </button>
+                  {hasCoordinates(selectedPlace) && (
+                    <a
+                      href={osmUrl(selectedPlace)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="map-mobile-sheet__route-btn"
+                      data-node-id="3149:3082"
+                    >
+                      <Navigation size={18} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
+                      <span>Открыть на карте</span>
+                    </a>
+                  )}
 
                   <a
                     href={`tel:${selectedPlace.phone || '112'}`}

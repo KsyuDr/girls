@@ -48,6 +48,7 @@ cd ../frontend && npm ci
 Примеры: `feat(auth): вход по телефону и коду`, `test(contacts): лимит в 5 контактов`.
 
 ## Тесты
+- Фронт: `cd frontend && npm test` (Vitest: `services/adapters.test.js`, `services/api.test.js`).
 - `cd backend && uv run pytest -q` (нужен запущенный `docker compose up -d db`).
 - Тесты всегда ходят в базу `safe_city_test` (conftest принудительно подменяет `DATABASE_URL`);
   схема пересоздаётся на прогон, таблицы очищаются после каждого теста.

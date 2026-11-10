@@ -172,6 +172,7 @@ export const GUEST_USER = {
   accuracyMeters: '—',
   geolocationEnabled: false,
   pushNotificationsEnabled: false,
+  hasLocation: false,
   role: 'guest',
   isModerator: false,
 };
@@ -195,6 +196,7 @@ export function adaptUser(user, activeSos = null) {
     coordinates: hasPoint ? `${user.lastLat.toFixed(4)}, ${user.lastLng.toFixed(4)}` : '—',
     lat: user.lastLat,
     lng: user.lastLng,
+    hasLocation: hasPoint,
     accuracyMeters: activeSos?.accuracyMeters ?? '—',
     geolocationEnabled: user.geolocationEnabled,
     pushNotificationsEnabled: user.pushNotificationsEnabled,
@@ -248,6 +250,38 @@ export function adaptIncidentType(type) {
 
 export function adaptReportSteps(steps) {
   return steps.map((step, index) => ({ ...step, number: String(index + 1) }));
+}
+
+/** Точки дальше этого расстояния от центра карты не рисуем: одна «далёкая» метка ломала масштаб. */
+export const MAP_RADIUS_METERS = 30000;
+
+function isPoint(p) {
+  return p && typeof p.lat === 'number' && typeof p.lng === 'number';
+}
+
+/** Расстояние по прямой в метрах (гаверсинус). */
+export function distanceMeters(a, b) {
+  const rad = (deg) => (deg * Math.PI) / 180;
+  const h =
+    Math.sin(rad(b.lat - a.lat) / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Центр карты: место пользователя, иначе среднее справочных точек, иначе центр Москвы. */
+export function pickMapCenter(userPoint, places) {
+  if (isPoint(userPoint)) return userPoint;
+  const valid = places.filter(isPoint);
+  if (valid.length === 0) return { lat: 55.7539, lng: 37.6208 };
+  return {
+    lat: valid.reduce((s, p) => s + p.lat, 0) / valid.length,
+    lng: valid.reduce((s, p) => s + p.lng, 0) / valid.length,
+  };
+}
+
+/** Оставляет точки не дальше MAP_RADIUS_METERS от центра (точки без координат отбрасываются). */
+export function nearCenter(points, center) {
+  return points.filter((p) => isPoint(p) && distanceMeters(center, p) <= MAP_RADIUS_METERS);
 }
 
 /**
@@ -309,6 +343,8 @@ export function adaptPlace(place, project) {
     pinColor: PIN_COLORS[place.category] || '#007DA5',
     phone: place.phone || '112',
     hasDangerZone: place.category === 'danger',
+    lat: place.lat,
+    lng: place.lng,
     ...placeBadge(place.category, place.isOpen, place.hoursLabel),
     ...project(place.lat, place.lng),
   };
@@ -337,6 +373,8 @@ export function adaptIncidentAsPlace(incident, typesById, project) {
     badgeText: 'Опасно',
     badgeBg: '#FDE7EC',
     badgeColor: '#ED0536',
+    lat: incident.lat,
+    lng: incident.lng,
     ...project(incident.lat, incident.lng),
   };
 }
@@ -351,6 +389,7 @@ export function adaptOperatorIncident(incident, typesById) {
     icon: type?.icon || 'more-horizontal',
     address: incident.address,
     time: formatTime(incident.createdAt),
+    createdAt: incident.createdAt,
     status: incident.status,
     statusLabel: INCIDENT_STATUS_LABELS[incident.status] || incident.status,
     service: incident.moderatorNote || '—',
@@ -365,8 +404,8 @@ export function adaptOperatorProfile(user, now = new Date()) {
   return {
     initials: initialsOf(user?.name),
     name: user?.name || 'Модератор',
-    role: 'Модератор · на смене',
-    dateSubtitle: `${todayLabel(now)} · обновлено только что`,
+    role: 'Модератор',
+    dateSubtitle: `${todayLabel(now)} · обновляется автоматически`,
   };
 }
 
@@ -388,9 +427,28 @@ export function adaptSos(sos) {
       notifyMethod: d.channel === 'sms' ? 'SMS' : 'SMS и push',
       sosDeliveryStatus: d.status,
     })),
-    address: sos.address || 'Местоположение неизвестно',
+    // Координаты есть, а адреса нет — не пишем «неизвестно» рядом с точкой
+    address: sos.address || (hasPoint ? 'Адрес не указан' : 'Местоположение неизвестно'),
     coordinates: hasPoint ? `${sos.lat.toFixed(4)}, ${sos.lng.toFixed(4)}` : '—',
     accuracyMeters: sos.accuracyMeters ?? '—',
+  };
+}
+
+/** SOS другого жителя в панели модератора: имя, телефон, где и как давно. */
+export function adaptModerationSos(sos) {
+  const hasPoint = sos.lat !== null && sos.lng !== null;
+  return {
+    id: sos.id,
+    userName: sos.user.name,
+    phone: sos.user.phone,
+    displayPhone: formatPhone(sos.user.phone),
+    address: sos.address || (hasPoint ? 'Адрес не указан' : 'Местоположение неизвестно'),
+    coordinates: hasPoint ? `${sos.lat.toFixed(4)}, ${sos.lng.toFixed(4)}` : '—',
+    lat: sos.lat,
+    lng: sos.lng,
+    accuracyMeters: sos.accuracyMeters,
+    startedAt: Date.parse(sos.startedAt),
+    notifiedCount: sos.notifiedContacts.length,
   };
 }
 
@@ -398,11 +456,15 @@ export function adaptSos(sos) {
 export function adaptDashboard(data) {
   const ref = data.reference;
   const typesById = Object.fromEntries(ref.incidentTypes.map((t) => [t.id, t]));
-  const center = data.user ? { lat: data.user.lastLat, lng: data.user.lastLng } : null;
-  const dangerIncidents = data.incidents.filter(
-    (i) => typesById[i.type]?.group === 'danger' && i.status !== 'closed'
+  const userPoint = data.user ? { lat: data.user.lastLat, lng: data.user.lastLng } : null;
+  const center = pickMapCenter(userPoint, data.places);
+  // Выбросы (например, метка с координатами 0, 0) на карту не попадают и масштаб не портят
+  const places = nearCenter(data.places, center);
+  const dangerIncidents = nearCenter(
+    data.incidents.filter((i) => typesById[i.type]?.group === 'danger' && i.status !== 'closed'),
+    center
   );
-  const project = makeProjection([...data.places, ...dangerIncidents], center);
+  const project = makeProjection([...places, ...dangerIncidents], center);
   const activeSos = data.activeSos;
 
   const result = {
@@ -417,7 +479,7 @@ export function adaptDashboard(data) {
     mapCategories: ref.mapCategories,
     mapPlaces: [
       ...dangerIncidents.map((i) => adaptIncidentAsPlace(i, typesById, project)),
-      ...data.places.map((p) => adaptPlace(p, project)),
+      ...places.map((p) => adaptPlace(p, project)),
     ],
     incidentTypes: ref.incidentTypes.filter((t) => t.group === 'danger').map(adaptIncidentType),
     reportNextSteps: adaptReportSteps(ref.reportNextSteps),
@@ -426,6 +488,7 @@ export function adaptDashboard(data) {
     operatorIncidents: data.moderation
       ? data.moderation.incidents.map((i) => adaptOperatorIncident(i, typesById))
       : [],
+    operatorSos: data.moderation ? data.moderation.activeSos.map(adaptModerationSos) : [],
     operatorStats: data.moderation ? data.moderation.stats : null,
     operatorProfile: adaptOperatorProfile(data.user),
     incidentTypesById: typesById,

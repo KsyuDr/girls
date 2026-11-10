@@ -946,3 +946,9 @@
     box-sizing: border-box;
   }
 }
+
+/* «Открыть на карте» — ссылка, а не кнопка */
+a.map-popup-card__route-btn,
+a.map-mobile-sheet__route-btn {
+  text-decoration: none;
+}

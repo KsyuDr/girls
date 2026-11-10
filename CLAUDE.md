@@ -6,5 +6,5 @@
 
 - `backend/` — FastAPI (Python 3.13, uv). Тесты: `cd backend && uv run pytest -q`
   (нужен `docker compose up -d db`).
-- `frontend/` — React + Vite. Линт: `npm run lint`, формат: `npm run format`.
+- `frontend/` — React + Vite. Линт: `npm run lint`, формат: `npm run format`, тесты: `npm test`.
 - После каждого этапа: тесты + проверка в браузере + обновить `agents/06-roadmap.md`.
