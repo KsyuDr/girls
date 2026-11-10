@@ -57,14 +57,34 @@ function App() {
     operatorProfile: OPERATOR_PROFILE,
   });
 
-  useEffect(() => {
+  const loadDashboard = () =>
     getDashboardData().then((data) => {
       setDashboard((prev) => ({
         ...prev,
         ...data,
       }));
+      // С бэкендом: есть действующий токен — регистрация не нужна, активный SOS восстанавливаем
+      if (data.isAuthenticated) {
+        setCurrentPage((page) => (page === 'register' ? 'home' : page));
+      }
+      if (data.activeSos) {
+        setSosSession(data.activeSos);
+      }
+      return data;
     });
+
+  useEffect(() => {
+    loadDashboard().catch((error) => console.error(error));
   }, []);
+
+  // Ошибки сервера показываем пользователю; без входа — отправляем на регистрацию
+  const handleApiError = (error) => {
+    if (error?.status === 401) {
+      setCurrentPage('register');
+      return;
+    }
+    window.alert(error?.message || 'Что-то пошло не так. Попробуйте ещё раз');
+  };
 
   const handleRegistrationSuccess = (updatedUser) => {
     setDashboard((prev) => ({
@@ -72,6 +92,7 @@ function App() {
       user: updatedUser,
     }));
     setCurrentPage('home');
+    loadDashboard().catch((error) => console.error(error));
   };
 
   const handleNavigate = (page) => {
@@ -83,52 +104,80 @@ function App() {
   };
 
   const handleTriggerSos = async () => {
-    const session = await sendSosSignal({
-      coordinates: dashboard.user.coordinates,
-      address: dashboard.user.address,
-    });
-    setSosSession(session);
-    setCurrentPage('sos');
+    try {
+      const session = await sendSosSignal({
+        coordinates: dashboard.user.coordinates,
+        address: dashboard.user.address,
+      });
+      setSosSession(session);
+      setCurrentPage('sos');
+    } catch (error) {
+      if (error?.status === 401) {
+        setCurrentPage('register');
+        return;
+      }
+      window.alert(`${error?.message || 'Не удалось отправить SOS'}. Позвоните 112`);
+    }
   };
 
   const handleCancelSos = async () => {
-    if (sosSession?.id) {
-      await cancelSosSignal(sosSession.id);
+    try {
+      if (sosSession?.id) {
+        await cancelSosSignal(sosSession.id);
+      }
+    } catch (error) {
+      console.error(error);
     }
     setSosSession(null);
     setCurrentPage('home');
   };
 
   const handleToggleContactSos = async (contactId, nextReceivesSos) => {
-    const updatedContacts = await toggleContactSos(contactId, nextReceivesSos);
-    setDashboard((prev) => ({
-      ...prev,
-      contacts: updatedContacts,
-    }));
+    try {
+      const updatedContacts = await toggleContactSos(contactId, nextReceivesSos);
+      setDashboard((prev) => ({
+        ...prev,
+        contacts: updatedContacts,
+      }));
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   const handleAddContact = async (contactPayload) => {
-    const updatedContacts = await addEmergencyContact(contactPayload);
-    setDashboard((prev) => ({
-      ...prev,
-      contacts: updatedContacts,
-    }));
+    try {
+      const updatedContacts = await addEmergencyContact(contactPayload);
+      setDashboard((prev) => ({
+        ...prev,
+        contacts: updatedContacts,
+      }));
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   const handleDeleteContact = async (contactId) => {
-    const updatedContacts = await deleteEmergencyContact(contactId);
-    setDashboard((prev) => ({
-      ...prev,
-      contacts: updatedContacts,
-    }));
+    try {
+      const updatedContacts = await deleteEmergencyContact(contactId);
+      setDashboard((prev) => ({
+        ...prev,
+        contacts: updatedContacts,
+      }));
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   const handleTogglePushNotifications = async (enabled) => {
-    const updatedUser = await togglePushNotifications(enabled);
-    setDashboard((prev) => ({
-      ...prev,
-      user: updatedUser,
-    }));
+    try {
+      const updatedUser = await togglePushNotifications(enabled);
+      setDashboard((prev) => ({
+        ...prev,
+        user: updatedUser,
+      }));
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   const handleSubmitReport = async (payload) => {
@@ -143,19 +192,27 @@ function App() {
   };
 
   const handleUpdateIncidentStatus = async (incidentId, nextStatus, assignedService) => {
-    const updatedIncidents = await updateIncidentStatus(incidentId, nextStatus, assignedService);
-    setDashboard((prev) => ({
-      ...prev,
-      operatorIncidents: updatedIncidents,
-    }));
+    try {
+      const updatedIncidents = await updateIncidentStatus(incidentId, nextStatus, assignedService);
+      setDashboard((prev) => ({
+        ...prev,
+        operatorIncidents: updatedIncidents,
+      }));
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   const handleCreateCityAlert = async (alertPayload) => {
-    const updatedAlerts = await createCityAlert(alertPayload);
-    setDashboard((prev) => ({
-      ...prev,
-      alerts: updatedAlerts,
-    }));
+    try {
+      const updatedAlerts = await createCityAlert(alertPayload);
+      setDashboard((prev) => ({
+        ...prev,
+        alerts: updatedAlerts,
+      }));
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   return (
@@ -249,6 +306,7 @@ function App() {
           user={dashboard.user}
           operatorProfile={dashboard.operatorProfile}
           incidents={dashboard.operatorIncidents}
+          stats={dashboard.operatorStats}
           onUpdateIncidentStatus={handleUpdateIncidentStatus}
           onCreateAlert={handleCreateCityAlert}
           onNavigate={handleNavigate}

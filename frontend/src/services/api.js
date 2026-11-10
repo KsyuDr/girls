@@ -13,22 +13,140 @@ import {
   INITIAL_OPERATOR_INCIDENTS,
   OPERATOR_PROFILE,
 } from '../mock/data';
+import {
+  ALERT_LEVEL_CONFIG,
+  adaptAlert,
+  adaptContact,
+  adaptDashboard,
+  adaptOperatorIncident,
+  adaptSos,
+  adaptUser,
+} from './adapters';
 
 /**
- * Единый сервисный слой для работы с бэкендом.
- * Пока сервер (Node.js + PostgreSQL) в разработке, USE_MOCK = true.
- * Когда бэкенд будет готов, достаточно переключить VITE_USE_MOCK=false
- * и задать VITE_API_URL в .env — компоненты менять не придётся.
+ * Единый сервисный слой для работы с бэкендом (FastAPI, backend/).
+ * VITE_USE_MOCK=false — работаем с сервером (см. frontend/.env.development),
+ * иначе — с моками из src/mock/data.js и localStorage. Компоненты одинаковы в обоих режимах:
+ * ответы сервера приводятся к форме моков в ./adapters.js.
  */
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const STORAGE_USER_KEY = 'safe_city_user';
 const STORAGE_CONTACTS_KEY = 'safe_city_contacts';
 const STORAGE_INCIDENTS_KEY = 'safe_city_incidents';
 const STORAGE_ALERTS_KEY = 'safe_city_alerts';
+const STORAGE_TOKEN_KEY = 'safe_city_token';
 
 const AVATAR_PALETTE = ['#007DA5', '#003C54', '#008F82', '#00C9B7'];
+
+// ---------- HTTP-клиент ----------
+
+function getToken() {
+  try {
+    return localStorage.getItem(STORAGE_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setToken(token) {
+  try {
+    if (token) localStorage.setItem(STORAGE_TOKEN_KEY, token);
+    else localStorage.removeItem(STORAGE_TOKEN_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function logout() {
+  setToken(null);
+}
+
+/** Ошибка API: message — текст для пользователя из поля detail. */
+export class ApiError extends Error {
+  constructor(status, message, detail) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+function errorMessage(detail, fallback) {
+  if (typeof detail === 'string') return detail;
+  // 422 от FastAPI: список ошибок валидации
+  if (Array.isArray(detail) && detail[0]?.msg) {
+    return detail[0].msg.replace(/^Value error, /, '');
+  }
+  return fallback;
+}
+
+async function request(path, { method = 'GET', body, form, fallback = 'Ошибка запроса' } = {}) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let payload;
+  if (form) {
+    payload = form; // multipart: Content-Type с boundary поставит браузер
+  } else if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    payload = JSON.stringify(body);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { method, headers, body: payload });
+  } catch {
+    throw new ApiError(0, 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз');
+  }
+  if (response.status === 401) setToken(null); // сессия истекла — дальше работаем как гость
+
+  if (!response.ok) {
+    let detail;
+    try {
+      detail = (await response.json()).detail;
+    } catch {
+      detail = undefined;
+    }
+    throw new ApiError(response.status, errorMessage(detail, fallback), detail);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+/** Текущие координаты браузера; null, если геолокация недоступна или запрещена. */
+function getBrowserPosition(timeoutMs = 4000) {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyMeters: Math.round(pos.coords.accuracy),
+        }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 }
+    );
+  });
+}
+
+async function fetchContacts() {
+  const [contacts, active] = await Promise.all([request('/contacts'), request('/sos/active')]);
+  return contacts.map((c, i) => adaptContact(c, i, active));
+}
+
+async function fetchOperatorIncidents() {
+  const [incidents, reference] = await Promise.all([
+    request('/moderation/incidents'),
+    request('/reference'),
+  ]);
+  const typesById = Object.fromEntries(reference.incidentTypes.map((t) => [t.id, t]));
+  return incidents.map((i) => adaptOperatorIncident(i, typesById));
+}
+
+// ---------- моки (localStorage) ----------
 
 function getStoredIncidents() {
   try {
@@ -105,17 +223,35 @@ function saveStoredContacts(contacts) {
   }
 }
 
+// ---------- вход ----------
+
+/**
+ * Шаг 1: отправить код. Если номер уже зарегистрирован, сервер отвечает 409 —
+ * тогда это вход, и код запрашиваем через /auth/login. Возвращает {step: 2, phone}.
+ * В режиме моков сразу возвращает {user} без шага кода.
+ */
 export async function registerUser(payload) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      throw new Error('Ошибка при регистрации пользователя');
+    const body = {
+      name: payload.name.trim(),
+      phone: payload.phone,
+      city: payload.city,
+      geolocationEnabled: Boolean(payload.geolocationEnabled),
+    };
+    try {
+      return await request('/auth/register', {
+        method: 'POST',
+        body,
+        fallback: 'Ошибка при регистрации пользователя',
+      });
+    } catch (error) {
+      if (error.status !== 409) throw error;
+      return request('/auth/login', {
+        method: 'POST',
+        body: { phone: payload.phone },
+        fallback: 'Не удалось отправить код',
+      });
     }
-    return response.json();
   }
 
   await new Promise((resolve) => setTimeout(resolve, 200));
@@ -150,13 +286,43 @@ export async function registerUser(payload) {
   return { user: updatedUser, step: 2, smsSent: true };
 }
 
+/** Шаг 2: проверить код из SMS, сохранить токен. Возвращает {user}. */
+export async function verifyCode(phone, code) {
+  if (USE_MOCK) {
+    return { user: INITIAL_USER };
+  }
+  const result = await request('/auth/verify', {
+    method: 'POST',
+    body: { phone, code: code.trim() },
+    fallback: 'Неверный код',
+  });
+  setToken(result.accessToken);
+
+  // Если пользователь разрешил геолокацию — сразу сохраним местоположение для SOS и карты
+  if (result.user.geolocationEnabled) {
+    const position = await getBrowserPosition();
+    if (position) {
+      const updated = await request('/users/me', {
+        method: 'PATCH',
+        body: { lastLat: position.lat, lastLng: position.lng },
+      }).catch(() => null);
+      if (updated) return { user: adaptUser(updated) };
+    }
+  }
+  return { user: adaptUser(result.user) };
+}
+
+// ---------- данные приложения ----------
+
 export async function getDashboardData() {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/dashboard`);
-    if (!response.ok) {
-      throw new Error('Не удалось загрузить данные');
+    try {
+      return adaptDashboard(await request('/dashboard'));
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      // Токен протух — request() его уже удалил, грузим гостевые данные
+      return adaptDashboard(await request('/dashboard'));
     }
-    return response.json();
   }
 
   let storedUser = null;
@@ -184,17 +350,24 @@ export async function getDashboardData() {
   };
 }
 
+// ---------- SOS ----------
+
 export async function sendSosSignal(coordinates) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/sos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(coordinates),
-    });
-    if (!response.ok) {
-      throw new Error('Не удалось отправить сигнал SOS');
+    const position = await getBrowserPosition();
+    const body = position ? { ...position } : {};
+    if (
+      coordinates?.address &&
+      !['Местоположение неизвестно', 'Текущее местоположение'].includes(coordinates.address)
+    ) {
+      body.address = coordinates.address;
     }
-    return response.json();
+    const sos = await request('/sos', {
+      method: 'POST',
+      body,
+      fallback: 'Не удалось отправить сигнал SOS',
+    });
+    return adaptSos(sos);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 200));
@@ -212,36 +385,33 @@ export async function sendSosSignal(coordinates) {
 
 export async function cancelSosSignal(sosId) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/sos/${sosId || 'active'}/cancel`, {
+    const sos = await request(`/sos/${sosId || 'active'}/cancel`, {
       method: 'POST',
+      fallback: 'Не удалось отменить сигнал SOS',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось отменить сигнал SOS');
-    }
-    return response.json();
+    return adaptSos(sos);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 150));
   return { status: 'cancelled' };
 }
 
+// ---------- экстренные контакты (возвращают весь список) ----------
+
 export async function toggleContactSos(contactId, receivesSos) {
+  if (!USE_MOCK) {
+    await request(`/contacts/${contactId}`, {
+      method: 'PATCH',
+      body: { receivesSos: Boolean(receivesSos) },
+      fallback: 'Не удалось обновить статус контакта',
+    });
+    return fetchContacts();
+  }
+
   const currentContacts = getStoredContacts();
   const target = currentContacts.find((c) => c.id === contactId);
   const nextReceivesSos =
     typeof receivesSos === 'boolean' ? receivesSos : !(target?.receivesSos ?? false);
-
-  if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/contacts/${contactId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ receivesSos: nextReceivesSos }),
-    });
-    if (!response.ok) {
-      throw new Error('Не удалось обновить статус контакта');
-    }
-    return response.json();
-  }
 
   const contacts = currentContacts.map((c) =>
     c.id === contactId ? { ...c, receivesSos: nextReceivesSos } : c
@@ -252,15 +422,17 @@ export async function toggleContactSos(contactId, receivesSos) {
 
 export async function addEmergencyContact(payload) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/contacts`, {
+    await request('/contacts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: {
+        name: payload.name,
+        relation: payload.relation,
+        phone: payload.phone,
+        receivesSos: payload.receivesSos ?? true,
+      },
+      fallback: 'Не удалось добавить контакт',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось добавить контакт');
-    }
-    return response.json();
+    return fetchContacts();
   }
 
   const current = getStoredContacts();
@@ -292,13 +464,11 @@ export async function addEmergencyContact(payload) {
 
 export async function deleteEmergencyContact(contactId) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/contacts/${contactId}`, {
+    await request(`/contacts/${contactId}`, {
       method: 'DELETE',
+      fallback: 'Не удалось удалить контакт',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось удалить контакт');
-    }
-    return response.json();
+    return fetchContacts();
   }
 
   const updated = getStoredContacts().filter((c) => c.id !== contactId);
@@ -306,17 +476,16 @@ export async function deleteEmergencyContact(contactId) {
   return updated;
 }
 
+// ---------- профиль ----------
+
 export async function togglePushNotifications(enabled) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/user/notifications`, {
+    const user = await request('/user/notifications', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pushNotificationsEnabled: enabled }),
+      body: { pushNotificationsEnabled: Boolean(enabled) },
+      fallback: 'Не удалось обновить настройки уведомлений',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось обновить настройки уведомлений');
-    }
-    return response.json();
+    return adaptUser(user);
   }
 
   let storedUser = INITIAL_USER;
@@ -341,17 +510,45 @@ export async function togglePushNotifications(enabled) {
   return updatedUser;
 }
 
+// ---------- метки ----------
+
+/**
+ * Отправить метку и приложить фото (payload.photoFiles — массив File).
+ * Возвращает {incident: {id: '#1049'}, incidents?} — incidents только модератору (для панели).
+ */
 export async function submitIncidentReport(payload) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/incidents`, {
+    const position = await getBrowserPosition();
+    const incident = await request('/incidents', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: {
+        type: payload.typeId,
+        description: payload.description?.trim() || 'Без описания',
+        address: payload.address?.trim(),
+        isAnonymous: Boolean(payload.anonymous),
+        ...(position ? { lat: position.lat, lng: position.lng } : {}),
+      },
+      fallback: 'Не удалось отправить обращение',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось отправить обращение');
+
+    const files = (payload.photoFiles || []).filter(Boolean);
+    if (files.length > 0) {
+      const form = new FormData();
+      files.slice(0, 4).forEach((file) => form.append('files', file));
+      await request(`/incidents/${incident.id}/photos`, {
+        method: 'POST',
+        form,
+        fallback: 'Метка создана, но фото загрузить не удалось',
+      });
     }
-    return response.json();
+
+    const result = { incident: { id: `#${incident.id}`, rawId: incident.id } };
+    try {
+      result.incidents = await fetchOperatorIncidents();
+    } catch {
+      // не модератор — список панели не нужен
+    }
+    return result;
   }
 
   await new Promise((resolve) => setTimeout(resolve, 250));
@@ -388,17 +585,18 @@ export async function submitIncidentReport(payload) {
   return { incident: newIncident, incidents: updatedIncidents };
 }
 
+/** Панель модератора: смена статуса. Возвращает весь список меток панели. */
 export async function updateIncidentStatus(incidentId, nextStatus, assignedService) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/incidents/${encodeURIComponent(incidentId)}`, {
+    const id = String(incidentId).replace(/\D/g, ''); // «#1048» → 1048
+    const body = { status: nextStatus };
+    if (assignedService) body.moderatorNote = assignedService;
+    await request(`/moderation/incidents/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus, service: assignedService }),
+      body,
+      fallback: 'Не удалось обновить статус обращения',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось обновить статус обращения');
-    }
-    return response.json();
+    return fetchOperatorIncidents();
   }
 
   const STATUS_LABELS = {
@@ -428,45 +626,31 @@ export async function updateIncidentStatus(incidentId, nextStatus, assignedServi
   return updatedIncidents;
 }
 
+// ---------- оповещения ----------
+
+/** Модератор публикует оповещение. Возвращает всю ленту. */
 export async function createCityAlert(payload) {
   if (!USE_MOCK) {
-    const response = await fetch(`${API_BASE_URL}/alerts`, {
+    const checklist = Array.isArray(payload.actionsChecklist) ? payload.actionsChecklist : [];
+    await request('/alerts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: {
+        title: payload.title,
+        subtitle: payload.subtitle?.trim() || null,
+        description: payload.description,
+        level: payload.level || 'warning',
+        locationLabel: payload.locationLabel?.trim() || null,
+        sourceLabel: payload.sourceLabel?.trim() || null,
+        actionsChecklist: checklist,
+      },
+      fallback: 'Не удалось создать оповещение',
     });
-    if (!response.ok) {
-      throw new Error('Не удалось создать оповещение');
-    }
-    return response.json();
+    const alerts = await request('/alerts');
+    return alerts.map((a) => adaptAlert(a));
   }
 
-  const LEVEL_CONFIG = {
-    critical: {
-      badgeText: 'Критическое',
-      icon: 'triangle-alert',
-      bgColor: '#FDE7EC',
-      accentColor: '#ED0536',
-      borderColor: '#ED0536',
-    },
-    warning: {
-      badgeText: 'Предупреждение',
-      icon: 'bell',
-      bgColor: '#E5F2F7',
-      accentColor: '#007DA5',
-      borderColor: '#007DA5',
-    },
-    info: {
-      badgeText: 'Информация',
-      icon: 'message-circle',
-      bgColor: '#E0F7F4',
-      accentColor: '#008F82',
-      borderColor: '#00C9B7',
-    },
-  };
-
   const level = payload.level || 'warning';
-  const cfg = LEVEL_CONFIG[level] || LEVEL_CONFIG.warning;
+  const cfg = ALERT_LEVEL_CONFIG[level] || ALERT_LEVEL_CONFIG.warning;
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
     2,

@@ -49,6 +49,7 @@ export default function ReportPage({
   const [photos, setPhotos] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [submittedIncident, setSubmittedIncident] = useState(null);
+  const [submitError, setSubmitError] = useState('');
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -59,6 +60,7 @@ export default function ReportPage({
       id: `ph_${Date.now()}_${idx}`,
       name: file.name,
       url: URL.createObjectURL(file),
+      file,
     }));
     setPhotos((prev) => [...prev, ...newPhotos].slice(0, 4));
     e.target.value = '';
@@ -75,6 +77,7 @@ export default function ReportPage({
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setSubmitError('');
     try {
       const result = await onSubmitReport?.({
         typeId: selectedTypeId,
@@ -82,10 +85,13 @@ export default function ReportPage({
         description: description.trim(),
         anonymous,
         photosCount: photos.length,
+        photoFiles: photos.map((p) => p.file),
       });
       setSubmittedIncident(result?.incident || { id: '#1049' });
       setDescription('');
       setPhotos([]);
+    } catch (error) {
+      setSubmitError(error.message || 'Не удалось отправить обращение');
     } finally {
       setSubmitting(false);
     }
@@ -252,6 +258,11 @@ export default function ReportPage({
         <div className="report-content-row" data-node-id="3149:1850">
           {/* Карточка формы */}
           <form className="report-form-card" onSubmit={handleSubmit} data-node-id="3149:1792">
+            {submitError && (
+              <p className="report-submit-error" role="alert">
+                {submitError}
+              </p>
+            )}
             {submittedIncident && (
               <div className="report-success-banner" role="status">
                 <div className="report-success-banner__icon">

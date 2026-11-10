@@ -12,7 +12,8 @@
 | Функция api.js | Эндпоинт бэкенда | Этап |
 |---|---|---|
 | `registerUser` | `POST /auth/register`, затем `POST /auth/verify` | 1 |
-| `getDashboardData` | `GET /dashboard` (агрегат) или по частям ниже | 8 |
+| `getDashboardData` | `GET /dashboard` (агрегат) | 8 |
+| `verifyCode` (новая) | `POST /auth/verify`, токен в `localStorage` | 8 |
 | `togglePushNotifications` | `PATCH /user/notifications` | 1 |
 | `addEmergencyContact`, `toggleContactSos`, `deleteEmergencyContact` | `POST /contacts`, `PATCH /contacts/{id}`, `DELETE /contacts/{id}` | 3 |
 | `submitIncidentReport` | `POST /incidents` + `POST /incidents/{id}/photos` | 4 |
@@ -140,4 +141,7 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 
 | Метод и путь | Доступ | Ответ |
 |---|---|---|
-| `GET /dashboard` | все (с токеном — плюс личные данные) | всё, что нужно `App.jsx` при старте, в форме `getDashboardData` |
+| `GET /dashboard` | все (с токеном — плюс личные данные) | `{isAuthenticated, user, reference, alerts, places, incidents, contacts, activeSos, moderation}` |
+
+`user` и `activeSos` — `null` у гостя, `contacts` — пустой список; `moderation` = `{incidents, activeSos, stats}`
+только модератору. Форму `getDashboardData` из ответа собирает `adaptDashboard` в `frontend/src/services/adapters.js`.

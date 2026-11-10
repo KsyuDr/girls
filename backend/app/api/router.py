@@ -6,6 +6,7 @@ from app.api.routes import (
     alerts,
     auth,
     contacts,
+    dashboard,
     health,
     incidents,
     moderation,
@@ -24,3 +25,4 @@ api_router.include_router(incidents.router)
 api_router.include_router(sos.router)
 api_router.include_router(alerts.router)
 api_router.include_router(moderation.router)
+api_router.include_router(dashboard.router)

@@ -10,7 +10,7 @@ import {
   LocateFixed,
 } from 'lucide-react';
 import { CITIES } from '../mock/data';
-import { registerUser } from '../services/api';
+import { registerUser, verifyCode } from '../services/api';
 import './RegisterPage.css';
 
 export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
@@ -23,6 +23,10 @@ export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
   const [activeField, setActiveField] = useState('phone');
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Шаг 2 из 2: ввод кода из SMS (с реальным бэкендом; в режиме моков шаг пропускается)
+  const [step, setStep] = useState('form');
+  const [sentPhone, setSentPhone] = useState('');
+  const [code, setCode] = useState('');
 
   const validateField = (field, value) => {
     if (field === 'name') {
@@ -58,8 +62,28 @@ export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
     }
   };
 
+  const handleVerify = async () => {
+    if (!/^\d{4,6}$/.test(code.trim())) {
+      setErrors({ code: 'Введите код из SMS — 4 цифры' });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await verifyCode(sentPhone, code);
+      onSuccess?.(result.user);
+    } catch (error) {
+      setErrors({ code: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (step === 'code') {
+      await handleVerify();
+      return;
+    }
     const nameError = validateField('name', name);
     const phoneError = validateField('phone', phone);
 
@@ -76,9 +100,16 @@ export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
         city,
         geolocationEnabled,
       });
-      if (onSuccess) {
-        onSuccess(result.user);
+      if (result.user) {
+        onSuccess?.(result.user);
+      } else {
+        setSentPhone(result.phone || phone);
+        setCode('');
+        setErrors({});
+        setStep('code');
       }
+    } catch (error) {
+      setErrors({ form: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +211,7 @@ export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
               Экстренная помощь, оповещения и карта опасных мест вашего города
             </p>
             <p className="reg-mobile-header__step" data-node-id="3149:2292">
-              Шаг 1 из 2 · Регистрация
+              {step === 'code' ? 'Шаг 2 из 2 · Код из SMS' : 'Шаг 1 из 2 · Регистрация'}
             </p>
           </div>
 
@@ -189,170 +220,236 @@ export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
             Регистрация
           </h2>
           <p className="reg-card__subtitle" data-node-id="3149:65">
-            Шаг 1 из 2 · Введите данные, мы пришлём код по SMS
+            {step === 'code'
+              ? 'Шаг 2 из 2 · Введите код из SMS'
+              : 'Шаг 1 из 2 · Введите данные, мы пришлём код по SMS'}
           </p>
 
-          {/* Поле: Имя */}
-          <div className="reg-field-group" data-node-id="3149:69">
-            <label htmlFor="reg-name" className="reg-field-label" data-node-id="3149:68">
-              Имя
-            </label>
-            <div
-              className={`reg-field-control ${
-                activeField === 'name' ? 'reg-field-control--active' : ''
-              } ${errors.name ? 'reg-field-control--error' : ''}`}
-              data-node-id="3149:67"
-            >
-              <input
-                id="reg-name"
-                name="name"
-                type="text"
-                autoComplete="name"
-                enterKeyHint="next"
-                required
-                value={name}
-                onFocus={() => setActiveField('name')}
-                onBlur={(e) => handleBlur('name', e.target.value)}
-                onChange={handleNameChange}
-                placeholder="Введите ваше Имя и Фамилию"
-                className="reg-input"
-                aria-invalid={Boolean(errors.name)}
-                aria-describedby={errors.name ? 'reg-name-error' : undefined}
-              />
-            </div>
-            {errors.name && (
-              <span id="reg-name-error" className="reg-field-error" role="alert">
-                {errors.name}
-              </span>
-            )}
-          </div>
-
-          {/* Поле: Номер телефона */}
-          <div className="reg-field-group" data-node-id="3149:76">
-            <label htmlFor="reg-phone" className="reg-field-label" data-node-id="3149:75">
-              Номер телефона
-            </label>
-            <div
-              className={`reg-field-control ${
-                activeField === 'phone' ? 'reg-field-control--active' : ''
-              } ${errors.phone ? 'reg-field-control--error' : ''}`}
-              data-node-id="3149:74"
-            >
-              <Phone
-                size={20}
-                color="#6B7A89"
-                strokeWidth={1.8}
-                className="reg-field-icon"
-                aria-hidden="true"
-              />
-              <input
-                id="reg-phone"
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                inputMode="tel"
-                enterKeyHint="next"
-                required
-                value={phone}
-                onFocus={() => setActiveField('phone')}
-                onBlur={(e) => handleBlur('phone', e.target.value)}
-                onChange={handlePhoneChange}
-                placeholder="+7 (900) 000-00-00"
-                className="reg-input"
-                aria-invalid={Boolean(errors.phone)}
-                aria-describedby={errors.phone ? 'reg-phone-error' : undefined}
-              />
-            </div>
-            {errors.phone && (
-              <span id="reg-phone-error" className="reg-field-error" role="alert">
-                {errors.phone}
-              </span>
-            )}
-          </div>
-
-          {/* Поле: Город */}
-          <div className="reg-field-group" data-node-id="3149:87">
-            <label htmlFor="reg-city" className="reg-field-label" data-node-id="3149:86">
-              Город
-            </label>
-            <div
-              className={`reg-field-control reg-field-control--select ${
-                activeField === 'city' ? 'reg-field-control--active' : ''
-              }`}
-              data-node-id="3149:85"
-            >
-              <MapPin
-                size={20}
-                color="#6B7A89"
-                strokeWidth={1.8}
-                className="reg-field-icon"
-                aria-hidden="true"
-              />
-              <select
-                id="reg-city"
-                name="city"
-                autoComplete="address-level2"
-                value={city}
-                onFocus={() => setActiveField('city')}
-                onChange={(e) => setCity(e.target.value)}
-                className="reg-select"
-              >
-                {CITIES.map((cityName) => (
-                  <option key={cityName} value={cityName}>
-                    {cityName}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={20}
-                color="#6B7A89"
-                strokeWidth={1.8}
-                className="reg-select-chevron"
-                aria-hidden="true"
-              />
-            </div>
-          </div>
-
-          {/* Доступ к геолокации */}
-          <div className="reg-geo-box" data-node-id="3149:101">
-            <LocateFixed
-              size={22}
-              color="#007DA5"
-              strokeWidth={2}
-              className="reg-geo-box__icon"
-              aria-hidden="true"
-            />
-            <div className="reg-geo-box__text" data-node-id="3149:98">
-              <label htmlFor="reg-geo-toggle" className="reg-geo-box__title" data-node-id="3149:96">
-                Доступ к геолокации
+          {step === 'code' && (
+            <div className="reg-field-group">
+              <label htmlFor="reg-code" className="reg-field-label">
+                Код из SMS
               </label>
-              <span id="reg-geo-desc" className="reg-geo-box__desc" data-node-id="3149:97">
-                <span className="reg-geo-box__desc-desktop">
-                  Нужен, чтобы передавать местоположение при SOS
-                </span>
-                <span className="reg-geo-box__desc-mobile">
-                  Нужен, чтобы передавать ваше местоположение при SOS
-                </span>
-              </span>
-            </div>
-            <div className="reg-toggle-wrapper" data-node-id="3149:99">
-              <input
-                id="reg-geo-toggle"
-                name="geolocationEnabled"
-                type="checkbox"
-                checked={geolocationEnabled}
-                onChange={(e) => setGeolocationEnabled(e.target.checked)}
-                aria-describedby="reg-geo-desc"
-                className="visually-hidden reg-toggle-input"
-              />
-              <label
-                htmlFor="reg-geo-toggle"
-                className={`reg-toggle ${geolocationEnabled ? 'reg-toggle--on' : ''}`}
+              <div
+                className={`reg-field-control reg-field-control--active ${
+                  errors.code ? 'reg-field-control--error' : ''
+                }`}
               >
-                <span className="reg-toggle__thumb" />
-              </label>
+                <input
+                  id="reg-code"
+                  name="code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  autoFocus
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/\D/g, ''));
+                    if (errors.code) setErrors({});
+                  }}
+                  placeholder="0000"
+                  className="reg-input"
+                  aria-invalid={Boolean(errors.code)}
+                  aria-describedby="reg-code-hint"
+                />
+              </div>
+              <span id="reg-code-hint" className="reg-field-label">
+                Отправили на {sentPhone}
+              </span>
+              {errors.code && (
+                <span className="reg-field-error" role="alert">
+                  {errors.code}
+                </span>
+              )}
+              <button
+                type="button"
+                className="reg-login-row__link"
+                onClick={() => {
+                  setStep('form');
+                  setErrors({});
+                }}
+              >
+                Изменить номер
+              </button>
             </div>
-          </div>
+          )}
+
+          {step === 'form' && (
+            <>
+              {/* Поле: Имя */}
+              <div className="reg-field-group" data-node-id="3149:69">
+                <label htmlFor="reg-name" className="reg-field-label" data-node-id="3149:68">
+                  Имя
+                </label>
+                <div
+                  className={`reg-field-control ${
+                    activeField === 'name' ? 'reg-field-control--active' : ''
+                  } ${errors.name ? 'reg-field-control--error' : ''}`}
+                  data-node-id="3149:67"
+                >
+                  <input
+                    id="reg-name"
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    enterKeyHint="next"
+                    required
+                    value={name}
+                    onFocus={() => setActiveField('name')}
+                    onBlur={(e) => handleBlur('name', e.target.value)}
+                    onChange={handleNameChange}
+                    placeholder="Введите ваше Имя и Фамилию"
+                    className="reg-input"
+                    aria-invalid={Boolean(errors.name)}
+                    aria-describedby={errors.name ? 'reg-name-error' : undefined}
+                  />
+                </div>
+                {errors.name && (
+                  <span id="reg-name-error" className="reg-field-error" role="alert">
+                    {errors.name}
+                  </span>
+                )}
+              </div>
+
+              {/* Поле: Номер телефона */}
+              <div className="reg-field-group" data-node-id="3149:76">
+                <label htmlFor="reg-phone" className="reg-field-label" data-node-id="3149:75">
+                  Номер телефона
+                </label>
+                <div
+                  className={`reg-field-control ${
+                    activeField === 'phone' ? 'reg-field-control--active' : ''
+                  } ${errors.phone ? 'reg-field-control--error' : ''}`}
+                  data-node-id="3149:74"
+                >
+                  <Phone
+                    size={20}
+                    color="#6B7A89"
+                    strokeWidth={1.8}
+                    className="reg-field-icon"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id="reg-phone"
+                    name="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    enterKeyHint="next"
+                    required
+                    value={phone}
+                    onFocus={() => setActiveField('phone')}
+                    onBlur={(e) => handleBlur('phone', e.target.value)}
+                    onChange={handlePhoneChange}
+                    placeholder="+7 (900) 000-00-00"
+                    className="reg-input"
+                    aria-invalid={Boolean(errors.phone)}
+                    aria-describedby={errors.phone ? 'reg-phone-error' : undefined}
+                  />
+                </div>
+                {errors.phone && (
+                  <span id="reg-phone-error" className="reg-field-error" role="alert">
+                    {errors.phone}
+                  </span>
+                )}
+              </div>
+
+              {/* Поле: Город */}
+              <div className="reg-field-group" data-node-id="3149:87">
+                <label htmlFor="reg-city" className="reg-field-label" data-node-id="3149:86">
+                  Город
+                </label>
+                <div
+                  className={`reg-field-control reg-field-control--select ${
+                    activeField === 'city' ? 'reg-field-control--active' : ''
+                  }`}
+                  data-node-id="3149:85"
+                >
+                  <MapPin
+                    size={20}
+                    color="#6B7A89"
+                    strokeWidth={1.8}
+                    className="reg-field-icon"
+                    aria-hidden="true"
+                  />
+                  <select
+                    id="reg-city"
+                    name="city"
+                    autoComplete="address-level2"
+                    value={city}
+                    onFocus={() => setActiveField('city')}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="reg-select"
+                  >
+                    {CITIES.map((cityName) => (
+                      <option key={cityName} value={cityName}>
+                        {cityName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={20}
+                    color="#6B7A89"
+                    strokeWidth={1.8}
+                    className="reg-select-chevron"
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+
+              {/* Доступ к геолокации */}
+              <div className="reg-geo-box" data-node-id="3149:101">
+                <LocateFixed
+                  size={22}
+                  color="#007DA5"
+                  strokeWidth={2}
+                  className="reg-geo-box__icon"
+                  aria-hidden="true"
+                />
+                <div className="reg-geo-box__text" data-node-id="3149:98">
+                  <label
+                    htmlFor="reg-geo-toggle"
+                    className="reg-geo-box__title"
+                    data-node-id="3149:96"
+                  >
+                    Доступ к геолокации
+                  </label>
+                  <span id="reg-geo-desc" className="reg-geo-box__desc" data-node-id="3149:97">
+                    <span className="reg-geo-box__desc-desktop">
+                      Нужен, чтобы передавать местоположение при SOS
+                    </span>
+                    <span className="reg-geo-box__desc-mobile">
+                      Нужен, чтобы передавать ваше местоположение при SOS
+                    </span>
+                  </span>
+                </div>
+                <div className="reg-toggle-wrapper" data-node-id="3149:99">
+                  <input
+                    id="reg-geo-toggle"
+                    name="geolocationEnabled"
+                    type="checkbox"
+                    checked={geolocationEnabled}
+                    onChange={(e) => setGeolocationEnabled(e.target.checked)}
+                    aria-describedby="reg-geo-desc"
+                    className="visually-hidden reg-toggle-input"
+                  />
+                  <label
+                    htmlFor="reg-geo-toggle"
+                    className={`reg-toggle ${geolocationEnabled ? 'reg-toggle--on' : ''}`}
+                  >
+                    <span className="reg-toggle__thumb" />
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
+
+          {errors.form && (
+            <span className="reg-field-error" role="alert">
+              {errors.form}
+            </span>
+          )}
 
           {/* Кнопка отправки */}
           <button
@@ -362,10 +459,22 @@ export default function RegisterPage({ initialUser, onSuccess, onGoToLogin }) {
             data-node-id="3149:103"
           >
             <span className="reg-submit-btn__desktop">
-              {isSubmitting ? 'Отправка кода...' : 'Получить код'}
+              {step === 'code'
+                ? isSubmitting
+                  ? 'Проверка...'
+                  : 'Войти'
+                : isSubmitting
+                  ? 'Отправка кода...'
+                  : 'Получить код'}
             </span>
             <span className="reg-submit-btn__mobile">
-              {isSubmitting ? 'Отправка кода...' : 'Получить код по SMS'}
+              {step === 'code'
+                ? isSubmitting
+                  ? 'Проверка...'
+                  : 'Подтвердить и войти'
+                : isSubmitting
+                  ? 'Отправка кода...'
+                  : 'Получить код по SMS'}
             </span>
           </button>
 

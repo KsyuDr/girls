@@ -156,6 +156,16 @@
   gap: 20px;
 }
 
+.report-submit-error {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fde7ec;
+  color: #ed0536;
+  font-size: 14px;
+  line-height: 20px;
+}
+
 .report-success-banner {
   display: flex;
   align-items: center;

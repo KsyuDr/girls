@@ -10,7 +10,8 @@ uv run alembic upgrade head             # миграции
 uv run python -m app.cli seed           # демо-данные: точки карты и оповещения (можно повторно)
 uv run uvicorn app.main:app --reload    # http://localhost:8000/docs
 ```
-Фронт: `cd frontend && npm ci && npm run dev` → http://localhost:5173
+Фронт: `cd frontend && npm ci && npm run dev` → http://localhost:5173 (в dev ходит в бэкенд на :8000,
+см. `frontend/.env.development`; моки — `.env.development.local` с `VITE_USE_MOCK=true`)
 
 Вход в dev: код подтверждения всегда `0000` (смотрите строку `[SMS MOCK]` в логе сервера).
 Сделать пользователя модератором:

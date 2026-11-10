@@ -41,6 +41,7 @@ export default function OperatorPanelPage({
   user,
   operatorProfile,
   incidents = [],
+  stats = null,
   onUpdateIncidentStatus,
   onCreateAlert,
   onNavigate,
@@ -60,9 +61,24 @@ export default function OperatorPanelPage({
   const newCount = incidents.filter((inc) => inc.status === 'new').length;
   const inProgressCount = incidents.filter((inc) => inc.status === 'in_progress').length;
 
-  // В макете по умолчанию отображаются 12 новых и 8 в работе, но если добавлены новые обращения — учитываем динамику
-  const displayedNewCount = Math.max(12, 10 + newCount);
-  const displayedInProgressCount = Math.max(8, 6 + inProgressCount);
+  // С бэкендом (есть stats) показываем настоящие числа. В режиме моков — как в макете:
+  // 12 новых и 8 в работе, плюс динамика добавленных обращений
+  const displayedNewCount = stats ? newCount : Math.max(12, 10 + newCount);
+  const displayedInProgressCount = stats ? inProgressCount : Math.max(8, 6 + inProgressCount);
+  const reactionLabel = stats
+    ? stats.avgReactionMinutes === null
+      ? '—'
+      : `${Math.round(stats.avgReactionMinutes)} мин`
+    : '4 мин';
+  let reactionTrend = '−1 мин к вчерашнему дню';
+  if (stats) {
+    if (stats.avgReactionMinutes === null || stats.avgReactionMinutesPrev === null) {
+      reactionTrend = 'Нет данных для сравнения со вчера';
+    } else {
+      const diff = Math.round(stats.avgReactionMinutes - stats.avgReactionMinutesPrev);
+      reactionTrend = `${diff > 0 ? '+' : diff < 0 ? '−' : ''}${Math.abs(diff)} мин к вчерашнему дню`;
+    }
+  }
 
   const visibleIncidents =
     statusFilter === 'all' ? incidents : incidents.filter((inc) => inc.status === statusFilter);
@@ -389,13 +405,13 @@ export default function OperatorPanelPage({
               </div>
             </div>
             <div className="operator-metric-card__value" data-node-id="3149:1969">
-              4 мин
+              {reactionLabel}
             </div>
             <div
               className="operator-metric-card__footer operator-metric-card__footer--teal"
               data-node-id="3149:1970"
             >
-              −1 мин к вчерашнему дню
+              {reactionTrend}
             </div>
           </article>
         </section>
