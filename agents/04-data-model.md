@@ -48,10 +48,11 @@
 
 ## sos_signals
 | id | user_id FK | lat | lng | address | accuracy_m | status (`active`/`cancelled`/`resolved`) | ended_at |
-У пользователя не больше одного активного SOS.
+У пользователя не больше одного активного SOS (частичный уникальный индекс). `lat`/`lng` могут быть null.
 
 ## sos_deliveries — кому ушёл SOS (в MVP доставка имитируется)
-| id | sos_id FK | contact_id FK | channel | status (`sending`/`delivered`/`failed`) |
+| id | sos_id FK | contact_id FK null (SET NULL) | contact_name | contact_relation | contact_phone | channel | status (`sending`/`delivered`/`failed`) |
+Имя и номер копируются из контакта — история не теряется при его удалении.
 
 ## alerts — лента оповещений
 | id | title | subtitle | description | level (`critical`/`warning`/`info`) | location_label | source_label | actions_checklist jsonb (список строк) | author_id FK | is_published |

@@ -104,9 +104,15 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 
 | Метод и путь | Доступ | Тело запроса | Ответ |
 |---|---|---|---|
-| `POST /sos` | вход | `{lat, lng, address, accuracyMeters}` | `{id, status, startedAt, notifiedContacts, ...}` |
+| `POST /sos` | вход | `{lat?, lng?, address?, accuracyMeters?}` | `sos`, 201 (или 200, если сигнал уже активен) |
 | `GET /sos/active` | вход | — | активный сигнал или `null` |
 | `POST /sos/{id}/cancel` | вход | — | сигнал |
+| `POST /sos/active/cancel` | вход | — | отменить текущий активный сигнал |
+
+`sos` = `{id, status, lat, lng, address, accuracyMeters, startedAt, endedAt, notifiedContacts}`,
+`notifiedContacts[]` = `{id, contactId, name, relation, phone, channel, status}`, `status` доставки —
+`sending`/`delivered`/`failed`. Все поля `POST /sos` необязательны; при активном сигнале ответ 200
+(обновлено местоположение), иначе 201. Отмена: 404 — нет/чужой, 409 — уже завершён.
 
 ## Оповещения (этап 6)
 
