@@ -1,65 +1,98 @@
 # API-контракт
 
 Базовый URL: `http://localhost:8000/api`. Swagger: `http://localhost:8000/docs`.
-🔓 — без токена, 🔑 — нужен токен, 🛡 — нужна роль `moderator`.
+
+Колонка «Доступ»:
+- **все** — без токена;
+- **вход** — нужен заголовок `Authorization: Bearer <токен>`;
+- **модератор** — нужен токен пользователя с ролью `moderator`.
 
 ## Соответствие функциям `frontend/src/services/api.js`
 
-| функция api.js | эндпоинт бэкенда | этап |
+| Функция api.js | Эндпоинт бэкенда | Этап |
 |---|---|---|
-| `registerUser` | `POST /auth/register` → `POST /auth/verify` | 1 |
+| `registerUser` | `POST /auth/register`, затем `POST /auth/verify` | 1 |
 | `getDashboardData` | `GET /dashboard` (агрегат) или по частям ниже | 8 |
-| `togglePushNotifications` | `PATCH /user/notifications` 🔑 | 1 |
-| `addEmergencyContact` / `toggleContactSos` / `deleteEmergencyContact` | `POST/PATCH/DELETE /contacts[/{id}]` 🔑 | 3 |
-| `submitIncidentReport` | `POST /incidents` 🔑 + `POST /incidents/{id}/photos` 🔑 | 4 |
-| `sendSosSignal` / `cancelSosSignal` | `POST /sos` 🔑, `POST /sos/{id}/cancel` 🔑 | 5 |
-| `createCityAlert` | `POST /alerts` 🛡 | 6 |
-| `updateIncidentStatus` | `PATCH /moderation/incidents/{id}` 🛡 | 7 |
+| `togglePushNotifications` | `PATCH /user/notifications` | 1 |
+| `addEmergencyContact`, `toggleContactSos`, `deleteEmergencyContact` | `POST /contacts`, `PATCH /contacts/{id}`, `DELETE /contacts/{id}` | 3 |
+| `submitIncidentReport` | `POST /incidents` + `POST /incidents/{id}/photos` | 4 |
+| `sendSosSignal`, `cancelSosSignal` | `POST /sos`, `POST /sos/{id}/cancel` | 5 |
+| `createCityAlert` | `POST /alerts` | 6 |
+| `updateIncidentStatus` | `PATCH /moderation/incidents/{id}` | 7 |
 
-## Эндпоинты
+## Служебное (этап 0, готово)
 
-### Служебное
-- `GET /health` 🔓 → `{status, database, version}` ✅ этап 0
+| Метод и путь | Доступ | Тело запроса | Ответ |
+|---|---|---|---|
+| `GET /health` | все | — | `{status, database, version}` |
 
-### Авторизация и профиль (этап 1)
-- `POST /auth/register` 🔓 `{name, phone, city, geolocationEnabled}` → `{step: 2, smsSent: true}`
-  (409, если телефон уже подтверждён — тогда вход)
-- `POST /auth/login` 🔓 `{phone}` → `{step: 2, smsSent: true}` (404, если нет такого)
-- `POST /auth/verify` 🔓 `{phone, code}` → `{accessToken, tokenType: "bearer", user}`
-- `GET /users/me` 🔑 → `user`
-- `PATCH /users/me` 🔑 `{name?, city?, geolocationEnabled?, lastLat?, lastLng?, lastAddress?}`
-- `PATCH /user/notifications` 🔑 `{pushNotificationsEnabled}` → `user` (совместимость с api.js)
+## Вход и профиль (этап 1)
 
-### Справочники (этап 2)
-- `GET /reference` 🔓 → `{services, guides, incidentTypes, mapCategories, cities, sosWaitingTips, reportNextSteps, maxContacts}`
-- `GET /places?category=&lat=&lng=` 🔓 → точки карты (+ `distanceMeters`, если переданы координаты)
+| Метод и путь | Доступ | Тело запроса | Ответ |
+|---|---|---|---|
+| `POST /auth/register` | все | `{name, phone, city, geolocationEnabled}` | `{step: 2, smsSent: true, phone}`; 409, если номер уже подтверждён |
+| `POST /auth/login` | все | `{phone}` | `{step: 2, smsSent: true, phone}`; 404, если номера нет |
+| `POST /auth/verify` | все | `{phone, code}` | `{accessToken, tokenType: "bearer", user}`; 400 неверный/просроченный код, 429 много попыток |
+| `GET /users/me` | вход | — | `user` |
+| `PATCH /users/me` | вход | любые из `{name, city, geolocationEnabled, pushNotificationsEnabled, lastLat, lastLng, lastAddress}` | `user` |
+| `PATCH /user/notifications` | вход | `{pushNotificationsEnabled}` | `user` (путь как в api.js) |
 
-### Экстренные контакты (этап 3)
-- `GET /contacts` 🔑, `POST /contacts` 🔑 `{name, relation, phone, receivesSos}` (409 при >5),
-  `PATCH /contacts/{id}` 🔑, `DELETE /contacts/{id}` 🔑 (204)
+`user` = `{id, phone, name, city, role, geolocationEnabled, pushNotificationsEnabled, lastLat, lastLng, lastAddress, phoneVerifiedAt, createdAt}`.
 
-### Метки (этап 4)
-- `GET /incidents?type=&status=&lat=&lng=&radius=&mine=` 🔓 (скрытые не отдаются)
-- `GET /incidents/{id}` 🔓
-- `POST /incidents` 🔑 `{type, description, address, lat, lng, isAnonymous}`
-- `POST /incidents/{id}/photos` 🔑 multipart `files[]` (≤4, ≤5 МБ, jpg/png/webp)
-- `PATCH /incidents/{id}` 🔑 автор: описание / закрыть
-- `POST /incidents/{id}/responses` 🔑 «Помогу» `{message?}`; `DELETE /incidents/{id}/responses/me` 🔑
+## Справочники (этап 2)
 
-### SOS (этап 5)
-- `POST /sos` 🔑 `{lat, lng, address, accuracyMeters}` → `{id, status, startedAt, notifiedContacts[], ...}`
-- `GET /sos/active` 🔑 → активный сигнал или `null`
-- `POST /sos/{id}/cancel` 🔑
+| Метод и путь | Доступ | Параметры | Ответ |
+|---|---|---|---|
+| `GET /reference` | все | — | `{services, guides, incidentTypes, mapCategories, cities, sosWaitingTips, reportNextSteps, maxContacts}` |
+| `GET /places` | все | `category`, `lat`, `lng` | точки карты; `distanceMeters`, если переданы координаты |
 
-### Оповещения (этап 6)
-- `GET /alerts?level=` 🔓
-- `POST /alerts` 🛡 `{title, subtitle?, description, level, locationLabel?, sourceLabel?, actionsChecklist?}`
+## Экстренные контакты (этап 3)
 
-### Панель модератора (этап 7)
-- `GET /moderation/incidents?status=` 🛡 (включая скрытые)
-- `PATCH /moderation/incidents/{id}` 🛡 `{status, moderatorNote?}`
-- `GET /moderation/sos?status=active` 🛡
-- `GET /moderation/stats` 🛡 → `{newIncidents, inProgress, activeSos, avgReactionMinutes}`
+| Метод и путь | Доступ | Тело запроса | Ответ |
+|---|---|---|---|
+| `GET /contacts` | вход | — | список контактов |
+| `POST /contacts` | вход | `{name, relation, phone, receivesSos}` | контакт; 409, если уже 5 |
+| `PATCH /contacts/{id}` | вход | любые поля контакта | контакт |
+| `DELETE /contacts/{id}` | вход | — | 204 |
 
-### Агрегат (этап 8)
-- `GET /dashboard` 🔓/🔑 → всё, что нужно `App.jsx` при старте (форма как в `getDashboardData`)
+## Метки (этап 4)
+
+| Метод и путь | Доступ | Тело / параметры | Ответ |
+|---|---|---|---|
+| `GET /incidents` | все | `type`, `status`, `lat`, `lng`, `radius`, `mine` | список (скрытые не отдаются) |
+| `GET /incidents/{id}` | все | — | метка |
+| `POST /incidents` | вход | `{type, description, address, lat, lng, isAnonymous}` | метка |
+| `POST /incidents/{id}/photos` | вход | multipart `files` (до 4, до 5 МБ, jpg/png/webp) | список фото |
+| `PATCH /incidents/{id}` | вход (автор) | описание или закрыть | метка |
+| `POST /incidents/{id}/responses` | вход | `{message?}` — отклик «Помогу» | отклик |
+| `DELETE /incidents/{id}/responses/me` | вход | — | 204 |
+
+## SOS (этап 5)
+
+| Метод и путь | Доступ | Тело запроса | Ответ |
+|---|---|---|---|
+| `POST /sos` | вход | `{lat, lng, address, accuracyMeters}` | `{id, status, startedAt, notifiedContacts, ...}` |
+| `GET /sos/active` | вход | — | активный сигнал или `null` |
+| `POST /sos/{id}/cancel` | вход | — | сигнал |
+
+## Оповещения (этап 6)
+
+| Метод и путь | Доступ | Тело / параметры | Ответ |
+|---|---|---|---|
+| `GET /alerts` | все | `level` | лента |
+| `POST /alerts` | модератор | `{title, subtitle?, description, level, locationLabel?, sourceLabel?, actionsChecklist?}` | оповещение |
+
+## Панель модератора (этап 7)
+
+| Метод и путь | Доступ | Тело / параметры | Ответ |
+|---|---|---|---|
+| `GET /moderation/incidents` | модератор | `status` | все метки, включая скрытые |
+| `PATCH /moderation/incidents/{id}` | модератор | `{status, moderatorNote?}` | метка |
+| `GET /moderation/sos` | модератор | `status=active` | SOS-сигналы |
+| `GET /moderation/stats` | модератор | — | `{newIncidents, inProgress, activeSos, avgReactionMinutes}` |
+
+## Агрегат (этап 8)
+
+| Метод и путь | Доступ | Ответ |
+|---|---|---|
+| `GET /dashboard` | все (с токеном — плюс личные данные) | всё, что нужно `App.jsx` при старте, в форме `getDashboardData` |
