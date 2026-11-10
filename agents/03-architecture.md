@@ -22,14 +22,15 @@ app/
 ├── main.py              # create_app(): CORS, роутеры, статика /media
 ├── core/
 │   ├── config.py        # Settings (pydantic-settings, .env)
-│   └── security.py      # JWT, текущий пользователь, проверка роли        (этап 1)
+│   ├── security.py      # JWT, текущий пользователь, проверка роли        (этап 1)
+│   └── geo.py           # расстояние между точками (гаверсинус)          (этап 2)
 ├── db/
 │   ├── base.py          # Base, naming convention, TimestampMixin
 │   └── session.py       # engine, SessionFactory, SessionDep
 ├── models/              # SQLAlchemy-модели; все импортируются в models/__init__.py
 ├── schemas/             # Pydantic-схемы; наследуются от CamelModel
 ├── services/            # бизнес-логика (роуты тонкие, логика здесь)
-├── reference/           # статичные справочники: службы, памятки, типы   (этап 2)
+├── reference/           # статичные справочники и сид точек карты         (этап 2)
 └── api/
     ├── router.py        # общий APIRouter(prefix="/api")
     ├── deps.py          # зависимости: CurrentUser, ModeratorUser       (этап 1)

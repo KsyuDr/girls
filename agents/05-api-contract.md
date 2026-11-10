@@ -44,7 +44,21 @@
 | Метод и путь | Доступ | Параметры | Ответ |
 |---|---|---|---|
 | `GET /reference` | все | — | `{services, guides, incidentTypes, mapCategories, cities, sosWaitingTips, reportNextSteps, maxContacts}` |
-| `GET /places` | все | `category`, `lat`, `lng` | точки карты; `distanceMeters`, если переданы координаты |
+| `GET /places` | все | `category` (можно повторять), `lat` + `lng` (только вместе, иначе 400) | список `place`; с координатами — по близости |
+
+`place` = `{id, title, category, address, lat, lng, hoursLabel, phone, isOpen, distanceMeters}`;
+`category` — `shelter`/`hospital`/`police`/`danger`; `distanceMeters` — целые метры или `null`.
+
+Элементы справочника:
+- `services[]` = `{id, name, shortName, description, number, icon, bgColor, iconColor, showOnMobileHome}`;
+- `guides[]` = `{id, title, detailTitle, source, readMinutes, icon, emergencyNumber, callBannerTitle, callBannerSubtitle, showOnMobilePreview, steps[], donts[]}`;
+- `incidentTypes[]` = `{id, label, icon, group, hint}`, `group` — `danger`/`help`/`lost_found`;
+- `mapCategories[]` = `{id, label, dotColor}`; `reportNextSteps[]` = `{id, title, subtitle}`;
+- `cities`, `sosWaitingTips` — списки строк.
+
+Отличия от моков, которые закроют адаптеры `api.js` на этапе 8: у памяток нет
+`stepsCountLabel`/`metaSubtitle`, у типов меток `defaultService` стал `hint`, у точек карты нет
+готовых `distanceLabel`, `walkTimeLabel`, цветов и позиций на картинке.
 
 ## Экстренные контакты (этап 3)
 

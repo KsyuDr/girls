@@ -58,3 +58,4 @@
 
 ## places — справочные точки карты (сид-данные)
 | id | title | category (`shelter`/`hospital`/`police`/`danger`) | address | lat | lng | hours_label | phone | is_open |
+Уникальность (title, address) — по ней сид не дублирует точки. Сид Москвы: `app/reference/places_seed.py`.
