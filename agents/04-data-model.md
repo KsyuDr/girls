@@ -38,6 +38,7 @@
 | status | varchar | `new` → `in_progress` → `closed`; `hidden` — скрыта модератором |
 | moderator_note | text null | |
 | closed_at | timestamptz null | |
+| reacted_at | timestamptz null | первая смена статуса модератором — для «времени реакции» |
 
 ## incident_photos
 | id | incident_id FK | file_path | content_type | size_bytes |

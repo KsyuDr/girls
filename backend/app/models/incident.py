@@ -45,6 +45,8 @@ class Incident(TimestampMixin, Base):
     )
     moderator_note: Mapped[str | None] = mapped_column(Text)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Когда модератор впервые взял метку в работу (для «среднего времени реакции»)
+    reacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     author: Mapped[User] = relationship(lazy="raise")
     photos: Mapped[list["IncidentPhoto"]] = relationship(

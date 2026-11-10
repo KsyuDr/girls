@@ -130,10 +130,11 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 
 | Метод и путь | Доступ | Тело / параметры | Ответ |
 |---|---|---|---|
-| `GET /moderation/incidents` | модератор | `status` | все метки, включая скрытые |
+| `GET /moderation/incidents` | модератор | `status`, `type` (можно повторять), `limit` | все метки, включая скрытые, с автором и `moderatorNote` |
 | `PATCH /moderation/incidents/{id}` | модератор | `{status, moderatorNote?}` | метка |
-| `GET /moderation/sos` | модератор | `status=active` | SOS-сигналы |
-| `GET /moderation/stats` | модератор | — | `{newIncidents, inProgress, activeSos, avgReactionMinutes}` |
+| `GET /moderation/sos` | модератор | `status` (по умолчанию `active`), `limit` | SOS-сигналы с `user: {id, name, phone}` |
+| `POST /moderation/sos/{id}/resolve` | модератор | — | сигнал со статусом `resolved`; 409, если уже завершён |
+| `GET /moderation/stats` | модератор | — | `{newIncidents, inProgress, hidden, activeSos, avgReactionMinutes, avgReactionMinutesPrev}` |
 
 ## Агрегат (этап 8)
 
