@@ -19,7 +19,11 @@ import {
   ArrowLeft,
   Check,
   X,
+  Pencil,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
+import { elapsedLabel, ALERT_LEVEL_CONFIG } from '../services/adapters';
 import './OperatorPanelPage.css';
 
 const INCIDENT_TYPE_ICONS = {
@@ -49,9 +53,76 @@ const FILTER_LABELS = {
   hidden: 'Скрытые (сбросить)',
 };
 
-function sinceLabel(startedAt, now) {
-  const minutes = Math.max(0, Math.floor((now - startedAt) / 60000));
-  return minutes < 1 ? 'только что' : `${minutes} мин назад`;
+const ALERT_LEVEL_LABELS = {
+  critical: 'Критическое',
+  warning: 'Предупреждение',
+  info: 'Информация',
+};
+
+/** Заметка модератора к метке: по клику — поле ввода, Enter или «Сохранить» — на сервер. */
+function NoteCell({ incident, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const start = () => {
+    setDraft(incident.moderatorNote || '');
+    setEditing(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    const ok = await onSave(draft.trim());
+    setSaving(false);
+    if (ok !== false) setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="operator-note-btn"
+        onClick={start}
+        title="Изменить заметку"
+        aria-label={`Заметка к обращению ${incident.id}: ${incident.moderatorNote || 'нет'}`}
+      >
+        <span>{incident.moderatorNote || 'Добавить'}</span>
+        <Pencil size={14} color="#6B7A89" strokeWidth={2} aria-hidden="true" />
+      </button>
+    );
+  }
+  return (
+    <form
+      className="operator-note-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <input
+        type="text"
+        value={draft}
+        maxLength={1000}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
+        placeholder="Например: передано в управу"
+        aria-label={`Заметка к обращению ${incident.id}`}
+        className="operator-note-form__input"
+      />
+      <button type="submit" disabled={saving} className="operator-note-form__save">
+        {saving ? '...' : 'Сохранить'}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="operator-note-form__cancel"
+        aria-label="Отменить правку заметки"
+      >
+        <X size={14} color="#6B7A89" strokeWidth={2.5} aria-hidden="true" />
+      </button>
+    </form>
+  );
 }
 
 export default function OperatorPanelPage({
@@ -59,9 +130,11 @@ export default function OperatorPanelPage({
   incidents = [],
   sosSignals = [],
   stats = null,
+  alerts = [],
   onUpdateIncidentStatus,
   onResolveSos,
   onCreateAlert,
+  onUpdateAlert,
   onNavigate,
 }) {
   const [activeTab, setActiveTab] = useState('incidents'); // 'incidents' | 'sos' | 'reports'
@@ -75,13 +148,17 @@ export default function OperatorPanelPage({
     return () => clearInterval(timer);
   }, []);
 
-  // Поля модального окна «Создать оповещение» (пустые по умолчанию, только с подсказками placeholder)
+  // Поля модального окна «Создать оповещение» (пустые по умолчанию, только с подсказками placeholder).
+  // То же окно правит уже опубликованное оповещение (editingAlert)
   const alertDialogRef = useRef(null);
+  const [editingAlert, setEditingAlert] = useState(null);
+  const [alertSubtitle, setAlertSubtitle] = useState('');
+  const [alertTogglingId, setAlertTogglingId] = useState(null);
   const [alertTitle, setAlertTitle] = useState('');
   const [alertDescription, setAlertDescription] = useState('');
   const [alertLocation, setAlertLocation] = useState('');
   const [alertSource, setAlertSource] = useState('');
-  const [alertLevel, setAlertLevel] = useState('critical');
+  const [alertLevel, setAlertLevel] = useState('warning');
   const [alertError, setAlertError] = useState('');
   const [alertSubmitting, setAlertSubmitting] = useState(false);
 
@@ -145,14 +222,50 @@ export default function OperatorPanelPage({
     }
   };
 
+  // «Критическое» по умолчанию не ставим: случайная публикация не должна пугать весь город
   const openAlertDialog = () => {
+    setEditingAlert(null);
     setAlertTitle('');
+    setAlertSubtitle('');
     setAlertDescription('');
     setAlertLocation('');
     setAlertSource('');
-    setAlertLevel('critical');
+    setAlertLevel('warning');
     setAlertError('');
     alertDialogRef.current?.showModal();
+  };
+
+  const openEditAlertDialog = (alert) => {
+    setEditingAlert(alert);
+    setAlertTitle(alert.title);
+    setAlertSubtitle(alert.rawSubtitle ?? '');
+    setAlertDescription(alert.description);
+    setAlertLocation(alert.locationLabel === 'Весь город' ? '' : alert.locationLabel || '');
+    setAlertSource(alert.rawSourceLabel ?? '');
+    setAlertLevel(alert.level || 'warning');
+    setAlertError('');
+    alertDialogRef.current?.showModal();
+  };
+
+  // Снять с публикации / вернуть — с подтверждением, как и скрытие метки
+  const handleToggleAlertPublished = async (alert) => {
+    const published = alert.isPublished !== false;
+    const question = published
+      ? `Снять оповещение «${alert.title}» с публикации? Жители перестанут его видеть.`
+      : `Вернуть оповещение «${alert.title}» в ленту? Его снова увидят все жители.`;
+    if (!window.confirm(question)) return;
+    setAlertTogglingId(alert.id);
+    try {
+      await onUpdateAlert?.(
+        alert.id,
+        { isPublished: !published },
+        published ? 'Оповещение снято с публикации' : 'Оповещение снова в ленте'
+      );
+    } catch (error) {
+      window.alert(error?.message || 'Не удалось изменить оповещение');
+    } finally {
+      setAlertTogglingId(null);
+    }
   };
 
   const closeAlertDialog = () => {
@@ -170,18 +283,27 @@ export default function OperatorPanelPage({
     if (!alertTitle.trim() || !alertDescription.trim()) return;
     setAlertSubmitting(true);
     setAlertError('');
+    const fields = {
+      title: alertTitle.trim(),
+      subtitle: alertSubtitle.trim(),
+      description: alertDescription.trim(),
+      locationLabel: alertLocation.trim() || 'Весь город',
+      sourceLabel: alertSource.trim(), // пусто — в ленте будет «Безопасный город»
+      level: alertLevel,
+    };
     try {
-      await onCreateAlert?.({
-        title: alertTitle.trim(),
-        description: alertDescription.trim(),
-        locationLabel: alertLocation.trim() || 'Весь город',
-        sourceLabel: alertSource.trim(), // пусто — в ленте будет «Безопасный город»
-        level: alertLevel,
-      });
+      if (editingAlert) {
+        await onUpdateAlert?.(editingAlert.id, fields, 'Изменения сохранены');
+      } else {
+        await onCreateAlert?.(fields);
+      }
       closeAlertDialog();
     } catch (error) {
       // окно остаётся открытым, введённый текст не теряется
-      setAlertError(error?.message || 'Не удалось опубликовать оповещение');
+      setAlertError(
+        error?.message ||
+          (editingAlert ? 'Не удалось сохранить изменения' : 'Не удалось опубликовать оповещение')
+      );
     } finally {
       setAlertSubmitting(false);
     }
@@ -508,7 +630,8 @@ export default function OperatorPanelPage({
                       <a href={`tel:${sos.phone}`} className="operator-sos-banner__phone">
                         {sos.displayPhone}
                       </a>{' '}
-                      · {sinceLabel(sos.startedAt, now)} · получили контактов: {sos.notifiedCount}
+                      · {elapsedLabel(now - sos.startedAt)} · получили контактов:{' '}
+                      {sos.notifiedCount}
                     </span>
                   </div>
 
@@ -611,7 +734,71 @@ export default function OperatorPanelPage({
                     </div>
 
                     <div className="operator-col operator-col--service operator-cell-service">
-                      {inc.service}
+                      <NoteCell
+                        incident={inc}
+                        onSave={(note) => onUpdateIncidentStatus?.(inc.id, inc.status, note)}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Оповещения: модератор правит, снимает с публикации и возвращает */}
+            <div className="operator-section-header">
+              <h2 className="operator-section-header__title">Оповещения</h2>
+              <button
+                type="button"
+                onClick={openAlertDialog}
+                className="operator-section-header__link"
+              >
+                Создать
+              </button>
+            </div>
+            <div className="operator-alerts-card">
+              {alerts.length === 0 && (
+                <p className="operator-alerts-card__empty">Оповещений пока нет</p>
+              )}
+              {alerts.map((alert) => {
+                const published = alert.isPublished !== false;
+                const levelCfg = ALERT_LEVEL_CONFIG[alert.level] || ALERT_LEVEL_CONFIG.warning;
+                return (
+                  <div
+                    key={alert.id}
+                    className={`operator-alert-row ${published ? '' : 'operator-alert-row--hidden'}`}
+                  >
+                    <div className="operator-alert-row__info">
+                      <span className="operator-alert-row__title">{alert.title}</span>
+                      <span className="operator-alert-row__meta">
+                        <span style={{ color: levelCfg.accentColor }}>
+                          {ALERT_LEVEL_LABELS[alert.level] || alert.level}
+                        </span>{' '}
+                        · {alert.detailedTime || alert.timeAgo} ·{' '}
+                        {published ? 'в ленте' : 'снято с публикации'}
+                      </span>
+                    </div>
+                    <div className="operator-alert-row__actions">
+                      <button
+                        type="button"
+                        onClick={() => openEditAlertDialog(alert)}
+                        className="operator-alert-row__btn"
+                      >
+                        <Pencil size={14} color="#007DA5" strokeWidth={2} aria-hidden="true" />
+                        <span>Изменить</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAlertPublished(alert)}
+                        disabled={alertTogglingId === alert.id}
+                        className="operator-alert-row__btn"
+                      >
+                        {published ? (
+                          <EyeOff size={14} color="#ED0536" strokeWidth={2} aria-hidden="true" />
+                        ) : (
+                          <Eye size={14} color="#008F82" strokeWidth={2} aria-hidden="true" />
+                        )}
+                        <span>{published ? 'Снять' : 'Вернуть'}</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -708,7 +895,7 @@ export default function OperatorPanelPage({
               </div>
               <div className="operator-map-legend__item" data-node-id="3149:2193">
                 <span className="operator-map-legend__dot" style={{ backgroundColor: '#008F82' }} />
-                <span>Службы</span>
+                <span>Закрытые</span>
               </div>
             </div>
           </aside>
@@ -724,7 +911,9 @@ export default function OperatorPanelPage({
       >
         <div className="contacts-dialog__content">
           <div className="contacts-dialog__header">
-            <h2 className="contacts-dialog__title">Создать городское оповещение</h2>
+            <h2 className="contacts-dialog__title">
+              {editingAlert ? 'Изменить оповещение' : 'Создать городское оповещение'}
+            </h2>
             <button
               type="button"
               onClick={closeAlertDialog}
@@ -761,10 +950,25 @@ export default function OperatorPanelPage({
                 onChange={(e) => setAlertLevel(e.target.value)}
                 className="contacts-dialog__input"
               >
-                <option value="critical">Критическое</option>
                 <option value="warning">Предупреждение</option>
                 <option value="info">Информация</option>
+                <option value="critical">Критическое</option>
               </select>
+            </div>
+
+            <div className="contacts-dialog__field">
+              <label htmlFor="alert-subtitle" className="contacts-dialog__label">
+                Коротко (подзаголовок)
+              </label>
+              <input
+                id="alert-subtitle"
+                type="text"
+                maxLength={200}
+                value={alertSubtitle}
+                onChange={(e) => setAlertSubtitle(e.target.value)}
+                placeholder="Необязательно. Например: ветер до 25 м/с"
+                className="contacts-dialog__input"
+              />
             </div>
 
             <div className="contacts-dialog__field">
@@ -821,7 +1025,7 @@ export default function OperatorPanelPage({
                 Отмена
               </button>
               <button type="submit" disabled={alertSubmitting} className="contacts-dialog__submit">
-                {alertSubmitting ? 'Публикуем...' : 'Опубликовать'}
+                {alertSubmitting ? 'Сохраняем...' : editingAlert ? 'Сохранить' : 'Опубликовать'}
               </button>
             </div>
           </form>

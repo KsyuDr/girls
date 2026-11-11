@@ -20,6 +20,7 @@ import {
   Filter,
   LayoutDashboard,
 } from 'lucide-react';
+import { plural } from '../services/adapters';
 import './MapPage.css';
 
 const PLACE_ICONS = {
@@ -92,11 +93,9 @@ export default function MapPage({
     ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
   ];
 
-  const getPlacesCountLabel = (count) => {
-    if (count === 1) return '1 место';
-    if (count >= 2 && count <= 4) return `${count} места`;
-    return `${count} мест`;
-  };
+  const getPlacesCountLabel = (count) => `${count} ${plural(count, 'место', 'места', 'мест')}`;
+  // Без места пользователя «рядом с вами» — неправда: список отсортирован не по расстоянию
+  const nearbyKnown = user?.hasLocation !== false;
 
   return (
     <div className="map-layout" data-node-id="3149:1617">
@@ -188,7 +187,9 @@ export default function MapPage({
               Карта
             </h1>
             <p className="map-topbar__subtitle" data-node-id="3149:1598">
-              Опасные места и пункты помощи рядом с вами
+              {nearbyKnown
+                ? 'Опасные места и пункты помощи рядом с вами'
+                : 'Опасные места и пункты помощи в городе'}
             </p>
           </div>
 
@@ -280,7 +281,7 @@ export default function MapPage({
 
             <div className="map-places-header" data-node-id="3149:1430">
               <h2 className="map-places-header__title" data-node-id="3149:1429">
-                Рядом с вами
+                {nearbyKnown ? 'Рядом с вами' : 'В городе'}
               </h2>
               <span className="map-places-header__count" data-node-id="3149:1428">
                 {getPlacesCountLabel(filteredPlaces.length)}

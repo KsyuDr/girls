@@ -140,6 +140,27 @@ export function detailedTime(iso, now = new Date()) {
   return `${date.getDate()} ${MONTHS[date.getMonth()]}, ${time}`;
 }
 
+/** Время в таблице: сегодня — «14:05», вчера — «вчера, 14:05», раньше — «8 нояб., 14:05». */
+export function shortDateTime(iso, now = new Date()) {
+  const date = new Date(iso);
+  const time = formatTime(iso);
+  if (isSameDay(date, now)) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(date, yesterday)) return `вчера, ${time}`;
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}, ${time}`;
+}
+
+/** Сколько прошло: «только что», «25 мин», «3 ч 5 мин», «2 дн». */
+export function elapsedLabel(ms) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  if (minutes < 1) return 'только что';
+  if (minutes < 60) return `${minutes} мин назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч ${minutes % 60} мин назад`;
+  return `${Math.floor(hours / 24)} дн ${hours % 24} ч назад`;
+}
+
 export function formatDistance(meters) {
   if (meters === null || meters === undefined) return '';
   if (meters < 1000) return `${Math.round(meters / 10) * 10 || meters} м`;
@@ -223,6 +244,9 @@ export function adaptAlert(alert, now = new Date()) {
     ...cfg,
     subtitle: alert.subtitle || alert.description.slice(0, 60),
     sourceLabel: alert.sourceLabel || 'Безопасный город',
+    // Как пришло с сервера — для формы правки у модератора
+    rawSubtitle: alert.subtitle || '',
+    rawSourceLabel: alert.sourceLabel || '',
     timeAgo: timeAgo(alert.createdAt, now),
     detailedTime: detailedTime(alert.createdAt, now),
     showOnHomeDesktop: true,
@@ -238,7 +262,7 @@ export function adaptContact(contact, index, activeSos = null) {
     mobileShortLabel: contact.relation || contact.name.split(/\s+/)[0],
     phone: formatPhone(contact.phone),
     avatarBg: AVATAR_PALETTE[index % AVATAR_PALETTE.length],
-    notifyMethod: contact.notifyMethod === 'sms' ? 'SMS' : 'SMS и push',
+    notifyMethod: 'SMS',
     sosDeliveryStatus: delivery?.status || 'delivered',
     showOnMobileSos: true,
   };
@@ -251,6 +275,16 @@ export function adaptIncidentType(type) {
 export function adaptReportSteps(steps) {
   return steps.map((step, index) => ({ ...step, number: String(index + 1) }));
 }
+
+// Центры городов из справочника: с них карта начинается, если места пользователя нет
+export const CITY_CENTERS = {
+  Москва: { lat: 55.7558, lng: 37.6173 },
+  'Санкт-Петербург': { lat: 59.9386, lng: 30.3141 },
+  Екатеринбург: { lat: 56.8389, lng: 60.6057 },
+  Казань: { lat: 55.7963, lng: 49.1088 },
+  Новосибирск: { lat: 55.0302, lng: 82.9204 },
+  'Нижний Новгород': { lat: 56.3269, lng: 44.0059 },
+};
 
 /** Точки дальше этого расстояния от центра карты не рисуем: одна «далёкая» метка ломала масштаб. */
 export const MAP_RADIUS_METERS = 30000;
@@ -379,7 +413,7 @@ export function adaptIncidentAsPlace(incident, typesById, project) {
   };
 }
 
-export function adaptOperatorIncident(incident, typesById) {
+export function adaptOperatorIncident(incident, typesById, now = new Date()) {
   const type = typesById[incident.type];
   return {
     id: `#${incident.id}`,
@@ -388,11 +422,12 @@ export function adaptOperatorIncident(incident, typesById) {
     typeLabel: type?.label || incident.type,
     icon: type?.icon || 'more-horizontal',
     address: incident.address,
-    time: formatTime(incident.createdAt),
+    time: shortDateTime(incident.createdAt, now),
     createdAt: incident.createdAt,
     status: incident.status,
     statusLabel: INCIDENT_STATUS_LABELS[incident.status] || incident.status,
     service: incident.moderatorNote || '—',
+    moderatorNote: incident.moderatorNote || '',
     description: incident.description,
     anonymous: incident.isAnonymous,
     photosCount: incident.photos.length,
@@ -415,6 +450,8 @@ export function adaptSos(sos) {
     id: sos.id,
     status: sos.status,
     startedAt: Date.parse(sos.startedAt),
+    // Есть ли у сигнала хоть какое-то место: иначе близкие получили сообщение без координат
+    hasLocation: hasPoint || Boolean(sos.address),
     notifiedContacts: sos.notifiedContacts.map((d, i) => ({
       id: d.contactId ?? `dlv_${d.id}`,
       initials: initialsOf(d.name),
@@ -424,7 +461,7 @@ export function adaptSos(sos) {
       phone: formatPhone(d.phone),
       avatarBg: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
       receivesSos: true,
-      notifyMethod: d.channel === 'sms' ? 'SMS' : 'SMS и push',
+      notifyMethod: 'SMS',
       sosDeliveryStatus: d.status,
     })),
     // Координаты есть, а адреса нет — не пишем «неизвестно» рядом с точкой
@@ -490,6 +527,8 @@ export function adaptDashboard(data) {
       : [],
     operatorSos: data.moderation ? data.moderation.activeSos.map(adaptModerationSos) : [],
     operatorStats: data.moderation ? data.moderation.stats : null,
+    // Все оповещения, включая снятые: модератор может исправить или вернуть их
+    operatorAlerts: data.moderation ? (data.moderation.alerts || []).map((a) => adaptAlert(a)) : [],
     operatorProfile: adaptOperatorProfile(data.user),
     incidentTypesById: typesById,
   };

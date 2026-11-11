@@ -760,9 +760,9 @@
     line-height: 29px;
   }
 
+  /* Аватар остаётся: на мобильном это единственный путь в профиль и к кнопке «Выйти» */
   .home-topbar__status-desktop,
-  .home-topbar__search,
-  .home-topbar__avatar {
+  .home-topbar__search {
     display: none;
   }
 

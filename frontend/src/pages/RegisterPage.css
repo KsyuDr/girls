@@ -585,3 +585,15 @@
   display: flex;
   gap: 16px;
 }
+
+.reg-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.reg-login-row__link:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+  text-decoration: none;
+}

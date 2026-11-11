@@ -35,6 +35,8 @@ export default function SosSentPage({
   const [searchQuery, setSearchQuery] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
+  // «Я в безопасности» сначала спрашивает подтверждение: близким сразу уходит отбой
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(() => {
     if (sosSession?.startedAt) {
       return Math.max(0, Math.floor((Date.now() - sosSession.startedAt) / 1000));
@@ -62,6 +64,14 @@ export default function SosSentPage({
   const recipients = sosSession?.notifiedContacts ?? [];
   const mobileSosContacts = recipients.slice(0, 2);
   const nobodyNotified = recipients.length === 0;
+  // Место неизвестно: близкие получили сообщение без координат — так и пишем
+  const locationKnown = sosSession?.hasLocation !== false;
+  const notifiedDesktop = locationKnown
+    ? 'Ваши близкие получили сообщение с вашим местоположением. Служба 112 о сигнале не знает — если нужна помощь, позвоните туда сами. Оставайтесь на месте, если это безопасно.'
+    : 'Ваши близкие получили сообщение, но без местоположения: его не удалось определить. Позвоните им или в 112 и скажите, где вы. Служба 112 о сигнале не знает.';
+  const notifiedMobile = locationKnown
+    ? 'Близкие получили сообщение. Нужна служба — позвоните 112'
+    : 'Близкие получили сообщение без места — скажите им, где вы';
   const address = sosSession?.address || user.address;
   const coordinates = sosSession?.coordinates || user.coordinates;
   const accuracy = sosSession?.accuracyMeters ?? user.accuracyMeters;
@@ -69,6 +79,7 @@ export default function SosSentPage({
 
   // Экран закрывается только после подтверждения сервера; при ошибке сигнал остаётся активным
   const handleCancel = async () => {
+    setConfirmingCancel(false);
     setCancelling(true);
     setCancelError('');
     try {
@@ -249,12 +260,10 @@ export default function SosSentPage({
             <p className="sos-banner__desc-desktop" data-node-id="3149:380">
               {nobodyNotified
                 ? 'Сигнал никому не отправлен: у вас нет контактов для SOS. Позвоните 112 и добавьте контакты.'
-                : 'Ваши близкие получили сообщение с вашим местоположением. Служба 112 о сигнале не знает — если нужна помощь, позвоните туда сами. Оставайтесь на месте, если это безопасно.'}
+                : notifiedDesktop}
             </p>
             <p className="sos-banner__desc-mobile" data-node-id="3149:2493">
-              {nobodyNotified
-                ? 'Сигнал никому не отправлен — позвоните 112'
-                : 'Близкие получили сообщение. Нужна служба — позвоните 112'}
+              {nobodyNotified ? 'Сигнал никому не отправлен — позвоните 112' : notifiedMobile}
             </p>
           </div>
 
@@ -266,7 +275,7 @@ export default function SosSentPage({
 
             <button
               type="button"
-              onClick={handleCancel}
+              onClick={() => setConfirmingCancel(true)}
               disabled={cancelling}
               className="sos-banner__safe-btn"
               data-node-id="3149:388"
@@ -457,7 +466,7 @@ export default function SosSentPage({
 
           <button
             type="button"
-            onClick={handleCancel}
+            onClick={() => setConfirmingCancel(true)}
             disabled={cancelling}
             className="sos-mobile-actions__cancel-btn"
             data-node-id="3149:2560"
@@ -466,6 +475,47 @@ export default function SosSentPage({
           </button>
         </div>
       </main>
+
+      {confirmingCancel && (
+        <div
+          className="app-modal"
+          role="presentation"
+          onKeyDown={(e) => e.key === 'Escape' && setConfirmingCancel(false)}
+        >
+          <div
+            className="app-modal__card"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="sos-cancel-title"
+          >
+            <h2 id="sos-cancel-title" className="app-modal__title">
+              Отменить сигнал SOS?
+            </h2>
+            <p className="app-modal__text">
+              {nobodyNotified
+                ? 'Сигнал будет завершён.'
+                : `Близким (${recipients.length}) сразу уйдёт сообщение, что вы в безопасности.`}
+            </p>
+            <div className="app-modal__actions">
+              <button
+                type="button"
+                className="app-modal__btn"
+                autoFocus
+                onClick={() => setConfirmingCancel(false)}
+              >
+                Нет, сигнал нужен
+              </button>
+              <button
+                type="button"
+                className="app-modal__btn app-modal__btn--danger"
+                onClick={handleCancel}
+              >
+                Да, я в безопасности
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

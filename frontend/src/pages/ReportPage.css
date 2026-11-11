@@ -311,7 +311,7 @@
 .report-address-hint {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 6px 20px;
   flex-wrap: wrap;
   font-size: 13px;
   color: #6b7a89;
@@ -700,10 +700,10 @@
     margin: 0 auto;
   }
 
+  /* Кнопки «Определить по геолокации» и «Указать на карте» нужны и на телефоне */
   .report-topbar,
   .report-side-col,
-  .report-cancel-btn,
-  .report-address-hint {
+  .report-cancel-btn {
     display: none;
   }
 
@@ -786,4 +786,11 @@
 .report-address-hint__geo-btn:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+.report-photo-retry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
 }

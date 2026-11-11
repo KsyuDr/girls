@@ -143,6 +143,58 @@ describe('SOS', () => {
     expect(sos.id).toBe(1);
   });
 
+  it('координаты досылаются к этому сигналу, а не новым POST /sos', async () => {
+    vi.stubGlobal('navigator', {
+      geolocation: {
+        getCurrentPosition: (ok) =>
+          ok({ coords: { latitude: 55.75, longitude: 37.62, accuracy: 12.4 } }),
+      },
+    });
+    const api = await loadApi();
+    responses = [reply(201, sosReply({ id: 7 })), reply(200, sosReply({ id: 7, lat: 55.75 }))];
+    const updates = [];
+
+    await api.sendSosSignal({}, { onLocationUpdate: (s) => updates.push(s) });
+    await vi.waitFor(() => expect(updates).toHaveLength(1));
+
+    expect(calls.map((c) => [c.method, c.url])).toEqual([
+      ['POST', '/sos'],
+      ['POST', '/sos/7/location'],
+    ]);
+    expect(JSON.parse(calls[1].body)).toEqual({ lat: 55.75, lng: 37.62, accuracyMeters: 12 });
+  });
+
+  it('сигнал уже завершён (409) — досылка молча прекращается, нового SOS нет', async () => {
+    vi.stubGlobal('navigator', {
+      geolocation: {
+        getCurrentPosition: (ok) =>
+          ok({ coords: { latitude: 55.75, longitude: 37.62, accuracy: 5 } }),
+      },
+    });
+    const api = await loadApi();
+    responses = [
+      reply(201, sosReply({ id: 7 })),
+      reply(409, { detail: 'Сигнал SOS уже завершён' }),
+    ];
+    const updates = [];
+
+    await api.sendSosSignal({}, { onLocationUpdate: (s) => updates.push(s) });
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+
+    expect(calls.filter((c) => c.url === '/sos')).toHaveLength(1);
+    expect(updates).toEqual([]);
+  });
+
+  it('getSosSignal говорит, чем закончился сигнал', async () => {
+    const api = await loadApi();
+    responses = [reply(200, sosReply({ status: 'cancelled' }))];
+
+    const sos = await api.getSosSignal(1);
+
+    expect(calls[0].url).toBe('/sos/1');
+    expect(sos.status).toBe('cancelled');
+  });
+
   it('cancelSosSignal пробрасывает ошибку сети — экран SOS не закроется молча', async () => {
     const api = await loadApi();
     responses = [new TypeError('Failed to fetch')];
@@ -198,24 +250,58 @@ describe('метки', () => {
     expect(result.incident.id).toBe('#12');
   });
 
-  it('если фото не загрузились, метка уже создана: ошибки нет, есть photoError', async () => {
+  it('битое фото не отменяет остальные: каждое уходит отдельно, ошибки — по файлам', async () => {
     const api = await loadApi();
-    responses = [reply(201, { id: 12 }), reply(413, { detail: 'a.png: фото больше 5 МБ' })];
-    const file = { name: 'a.png' };
+    responses = [
+      reply(201, { id: 12 }),
+      reply(201, []),
+      reply(400, { detail: 'b.jpg: файл повреждён' }),
+      reply(201, []),
+    ];
+    const files = [{ name: 'a.png' }, { name: 'b.jpg' }, { name: 'c.webp' }];
 
-    const result = await api.submitIncidentReport({ ...payload, photoFiles: [file] });
+    const result = await api.submitIncidentReport({ ...payload, photoFiles: files });
 
     expect(result.incident.id).toBe('#12');
-    expect(result.photoError).toContain('больше 5 МБ');
-    expect(calls.map((c) => c.url)).toEqual(['/incidents', '/incidents/12/photos']);
+    expect(calls.map((c) => c.url)).toEqual([
+      '/incidents',
+      '/incidents/12/photos',
+      '/incidents/12/photos',
+      '/incidents/12/photos',
+    ]);
+    expect(result.failedPhotos).toEqual([{ file: files[1], message: 'b.jpg: файл повреждён' }]);
   });
 
-  it('нет места: понятная подсказка про геолокацию вместо сухой ошибки сервера', async () => {
+  it('uploadIncidentPhotos досылает фото к уже созданной метке', async () => {
+    const api = await loadApi();
+    responses = [reply(201, [])];
+
+    const { failed } = await api.uploadIncidentPhotos(12, [{ name: 'a.png' }]);
+
+    expect(calls[0]).toMatchObject({ url: '/incidents/12/photos', method: 'POST' });
+    expect(failed).toEqual([]);
+  });
+
+  it('нет места, геолокации нет вовсе: подсказка не говорит «доступ запрещён»', async () => {
+    const api = await loadApi();
+    responses = [reply(400, { detail: 'Укажите место на карте или включите геолокацию' })];
+
+    const error = await api.submitIncidentReport(payload).catch((e) => e);
+
+    expect(error.status).toBe(400);
+    expect(error.message).toContain('Отметьте точку на карте');
+    expect(error.message).toContain('Проверьте GPS');
+    expect(error.message).not.toContain('запрещён');
+  });
+
+  it('нет места, доступ запрещён: подсказка, как его разрешить', async () => {
+    vi.stubGlobal('navigator', {
+      geolocation: { getCurrentPosition: (ok, fail) => fail({ code: 1 }) },
+    });
     const api = await loadApi();
     responses = [reply(400, { detail: 'Укажите место на карте или включите геолокацию' })];
 
     await expect(api.submitIncidentReport(payload)).rejects.toMatchObject({
-      status: 400,
       message: expect.stringContaining('значок замка'),
     });
   });

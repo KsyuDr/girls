@@ -21,6 +21,9 @@ import {
   submitIncidentReport,
   updateIncidentStatus,
   createCityAlert,
+  updateCityAlert,
+  uploadIncidentPhotos,
+  getSosSignal,
   logout,
 } from './services/api';
 import { GUEST_USER } from './services/adapters';
@@ -44,6 +47,18 @@ import './App.css';
 // Как часто перечитываем данные с сервера (в проекте нет push/WebSocket, см. решение 14)
 const REFRESH_INTERVAL_MS = 20000;
 
+// Почему SOS пропал с сервера — по статусу завершённого сигнала
+const SOS_END_MESSAGES = {
+  resolved: 'Сигнал SOS завершён: модератор отметил, что помощь пришла',
+  cancelled: 'Сигнал SOS отменён на другом устройстве',
+};
+
+// Разделы только для вошедших: гость не должен заполнять форму, которую не сможет отправить
+const LOGIN_REQUIRED = {
+  report: 'Войдите, чтобы сообщать о происшествиях',
+  contacts: 'Войдите, чтобы добавить экстренные контакты',
+};
+
 // С бэкендом до загрузки данных показываем пустое «гостевое» состояние, а не моки:
 // иначе человек увидел бы чужие имя, контакты и оповещения из макета.
 const EMPTY_DASHBOARD = {
@@ -62,6 +77,7 @@ const EMPTY_DASHBOARD = {
   operatorIncidents: [],
   operatorSos: [],
   operatorStats: null,
+  operatorAlerts: [],
   operatorProfile: { initials: 'М', name: 'Модератор', role: 'Модератор', dateSubtitle: '' },
 };
 
@@ -81,6 +97,7 @@ const MOCK_DASHBOARD = {
   operatorIncidents: INITIAL_OPERATOR_INCIDENTS,
   operatorSos: [],
   operatorStats: null,
+  operatorAlerts: RECENT_ALERTS,
   operatorProfile: OPERATOR_PROFILE,
 };
 
@@ -97,7 +114,9 @@ function App() {
   // Актуальные значения для таймеров и ответов, пришедших позже
   const pageRef = useRef(currentPage);
   const sosRef = useRef(sosSession);
-  const sosSetAtRef = useRef(0);
+  // «Эпоха» состояния: растёт при отправке/отмене SOS, входе и выходе. Ответ /dashboard,
+  // запрошенный до такого события, устарел и не должен «воскресить» сигнал или вход.
+  const epochRef = useRef(0);
   useEffect(() => {
     pageRef.current = currentPage;
   }, [currentPage]);
@@ -116,8 +135,12 @@ function App() {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  const bumpEpoch = () => {
+    epochRef.current += 1;
+  };
+
   const startSosSession = (session) => {
-    sosSetAtRef.current = Date.now();
+    bumpEpoch();
     setSosSession(session);
   };
 
@@ -127,8 +150,9 @@ function App() {
    */
   const loadDashboard = useCallback(
     async ({ silent = false } = {}) => {
-      const requestedAt = Date.now();
+      const epoch = epochRef.current;
       const data = await getDashboardData();
+      if (epoch !== epochRef.current) return null; // пока шёл запрос, состояние изменилось
       setDashboard((prev) => ({ ...prev, ...data }));
       setDataLoaded(true);
       setConnectionError('');
@@ -142,11 +166,15 @@ function App() {
         if (!sosRef.current || sosRef.current.id === data.activeSos.id) {
           setSosSession(data.activeSos);
         }
-      } else if (!USE_MOCK && sosRef.current && requestedAt > sosSetAtRef.current) {
-        // На сервере сигнала уже нет: его завершил модератор («помощь пришла») или он отменён
+      } else if (!USE_MOCK && sosRef.current) {
+        // На сервере сигнала уже нет: его завершил модератор («помощь пришла») или его
+        // отменили на другом устройстве — спросим у сервера, что именно случилось
+        const ended = sosRef.current;
         setSosSession(null);
         if (pageRef.current === 'sos') setCurrentPage('home');
-        notify('Сигнал SOS завершён: модератор отметил, что помощь пришла');
+        getSosSignal(ended.id).then((sos) =>
+          notify(SOS_END_MESSAGES[sos?.status] || 'Сигнал SOS завершён')
+        );
       }
 
       if (!USE_MOCK && pageRef.current === 'operator' && !data.user?.isModerator) {
@@ -187,9 +215,10 @@ function App() {
   // 401 → на экран входа; true, если перенаправили
   const redirectIfUnauthorized = (error) => {
     if (error?.status !== 401) return false;
+    bumpEpoch();
     setDashboard((prev) => ({ ...prev, isAuthenticated: false, user: GUEST_USER }));
     setCurrentPage('register');
-    notify('Сессия истекла — войдите снова', 'error');
+    notify(isAuthenticated ? 'Сессия истекла — войдите снова' : 'Сначала войдите', 'error');
     return true;
   };
 
@@ -200,6 +229,7 @@ function App() {
   };
 
   const handleRegistrationSuccess = (updatedUser) => {
+    bumpEpoch();
     setDashboard((prev) => ({ ...prev, user: updatedUser, isAuthenticated: true }));
     setCurrentPage('home');
     loadDashboard().catch((error) => console.error(error));
@@ -207,6 +237,7 @@ function App() {
 
   const handleLogout = () => {
     logout();
+    bumpEpoch();
     setSosSession(null);
     setDashboard((prev) => ({
       ...prev,
@@ -216,6 +247,7 @@ function App() {
       operatorIncidents: [],
       operatorSos: [],
       operatorStats: null,
+      operatorAlerts: [],
     }));
     setCurrentPage('register');
     if (!USE_MOCK) loadDashboard({ silent: true }).catch((error) => console.error(error));
@@ -228,6 +260,11 @@ function App() {
     }
     if (page === 'operator' && !canModerate) {
       notify('Панель модератора доступна только модераторам', 'error');
+      return;
+    }
+    if (LOGIN_REQUIRED[page] && !isAuthenticated) {
+      setCurrentPage('register');
+      notify(LOGIN_REQUIRED[page], 'error');
       return;
     }
     setCurrentPage(page);
@@ -291,6 +328,7 @@ function App() {
       // 404/409 — сигнал уже завершён на сервере, отменять нечего
       if (error?.status !== 404 && error?.status !== 409) throw error;
     }
+    bumpEpoch();
     setSosSession(null);
     setCurrentPage('home');
   };
@@ -352,13 +390,28 @@ function App() {
     }
   };
 
-  const handleUpdateIncidentStatus = async (incidentId, nextStatus, assignedService) => {
+  // Фото к уже созданной метке (повтор тех, что не загрузились)
+  const handleUploadPhotos = async (incidentId, files) => {
     try {
-      const updatedIncidents = await updateIncidentStatus(incidentId, nextStatus, assignedService);
+      const result = await uploadIncidentPhotos(incidentId, files);
+      refreshQuietly();
+      return result;
+    } catch (error) {
+      redirectIfUnauthorized(error);
+      throw error;
+    }
+  };
+
+  // note: строка — сохранить заметку модератора, undefined — не трогать
+  const handleUpdateIncidentStatus = async (incidentId, nextStatus, note) => {
+    try {
+      const updatedIncidents = await updateIncidentStatus(incidentId, nextStatus, note);
       setDashboard((prev) => ({ ...prev, operatorIncidents: updatedIncidents }));
       if (!USE_MOCK) refreshQuietly(); // счётчики и карта
+      return true;
     } catch (error) {
       handleApiError(error);
+      return false;
     }
   };
 
@@ -380,7 +433,33 @@ function App() {
   const handleCreateCityAlert = async (alertPayload) => {
     try {
       const updatedAlerts = await createCityAlert(alertPayload);
-      setDashboard((prev) => ({ ...prev, alerts: updatedAlerts }));
+      setDashboard((prev) => ({
+        ...prev,
+        alerts: updatedAlerts,
+        ...(USE_MOCK ? { operatorAlerts: updatedAlerts } : {}),
+      }));
+      notify('Оповещение опубликовано — жители видят его в ленте');
+      if (!USE_MOCK) refreshQuietly(); // список оповещений в панели
+    } catch (error) {
+      redirectIfUnauthorized(error);
+      throw error;
+    }
+  };
+
+  // Правка оповещения или снятие с публикации; форма сама покажет ошибку
+  const handleUpdateCityAlert = async (alertId, patch, successText) => {
+    try {
+      const result = await updateCityAlert(alertId, patch);
+      if (USE_MOCK) {
+        setDashboard((prev) => ({ ...prev, alerts: result, operatorAlerts: result }));
+      } else {
+        setDashboard((prev) => ({
+          ...prev,
+          operatorAlerts: prev.operatorAlerts.map((a) => (a.id === alertId ? result : a)),
+        }));
+        refreshQuietly(); // лента жителей
+      }
+      notify(successText || 'Оповещение изменено');
     } catch (error) {
       redirectIfUnauthorized(error);
       throw error;
@@ -508,6 +587,7 @@ function App() {
           reportNextSteps={dashboard.reportNextSteps}
           canModerate={canModerate}
           onSubmitReport={handleSubmitReport}
+          onUploadPhotos={handleUploadPhotos}
           onNavigate={handleNavigate}
           onTriggerSos={handleRequestSos}
         />
@@ -520,9 +600,11 @@ function App() {
           incidents={dashboard.operatorIncidents}
           sosSignals={dashboard.operatorSos}
           stats={dashboard.operatorStats}
+          alerts={dashboard.operatorAlerts}
           onUpdateIncidentStatus={handleUpdateIncidentStatus}
           onResolveSos={handleResolveSos}
           onCreateAlert={handleCreateCityAlert}
+          onUpdateAlert={handleUpdateCityAlert}
           onNavigate={handleNavigate}
         />
       )}
@@ -544,9 +626,14 @@ function App() {
             </h2>
             {sosRecipients.length > 0 ? (
               <p className="app-modal__text">
-                Сообщение с вашим местоположением получат:{' '}
-                <strong>{sosRecipients.map((c) => c.name).join(', ')}</strong>. В службу 112 сигнал
-                не передаётся — если нужна скорая, полиция или пожарные, позвоните 112.
+                {dashboard.user.hasLocation === false
+                  ? 'Сообщение получат'
+                  : 'Сообщение с вашим местоположением получат'}
+                : <strong>{sosRecipients.map((c) => c.name).join(', ')}</strong>.{' '}
+                {dashboard.user.hasLocation === false &&
+                  'Ваше место пока неизвестно: если браузер его определит, координаты уйдут следом. '}
+                В службу 112 сигнал не передаётся — если нужна скорая, полиция или пожарные,
+                позвоните 112.
               </p>
             ) : (
               <p className="app-modal__text app-modal__text--warn">

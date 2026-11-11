@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import {
   ShieldCheck,
   Home,
@@ -23,7 +23,11 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { locate, LOCATION_HELP } from '../services/api';
+import { CITY_CENTERS } from '../services/adapters';
 import './ReportPage.css';
+
+// Leaflet (~150 КБ) грузится, только когда человек открыл карту
+const LocationPicker = lazy(() => import('../components/LocationPicker'));
 
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -44,6 +48,7 @@ export default function ReportPage({
   reportNextSteps = [],
   canModerate = false,
   onSubmitReport,
+  onUploadPhotos,
   onNavigate,
   onTriggerSos,
 }) {
@@ -57,9 +62,14 @@ export default function ReportPage({
   const [submittedIncident, setSubmittedIncident] = useState(null);
   const [submitError, setSubmitError] = useState('');
   const [photoNote, setPhotoNote] = useState('');
-  const [photoError, setPhotoError] = useState('');
-  // Место метки: координаты из «Определить по геолокации» (иначе берутся при отправке)
+  // Фото, которые не загрузились к уже созданной метке: их можно дослать, не создавая дубль
+  const [failedPhotos, setFailedPhotos] = useState([]);
+  const [retryingPhotos, setRetryingPhotos] = useState(false);
+  const retryInputRef = useRef(null);
+  // Место метки: «Определить по геолокации» или точка на карте (иначе берётся при отправке)
   const [coordinates, setCoordinates] = useState(null);
+  const [coordinatesSource, setCoordinatesSource] = useState(null); // 'gps' | 'map'
+  const [showMap, setShowMap] = useState(false);
   const [accuracy, setAccuracy] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -116,13 +126,50 @@ export default function ReportPage({
     const { position, error } = await locate(8000);
     setLocating(false);
     if (!position) {
+      // Геолокации нет — сразу предлагаем отметить место на карте
       setLocationError(LOCATION_HELP[error] || LOCATION_HELP.unavailable);
+      setShowMap(true);
       return;
     }
     setCoordinates({ lat: position.lat, lng: position.lng });
+    setCoordinatesSource('gps');
     setAccuracy(position.accuracyMeters);
     const knownAddress = user?.address && !UNKNOWN_ADDRESSES.includes(user.address);
     if (!address.trim() && knownAddress) setAddress(user.address);
+  };
+
+  const handlePickOnMap = (point) => {
+    setCoordinates(point);
+    setCoordinatesSource('map');
+    setAccuracy(null);
+    setLocationError('');
+  };
+
+  // Откуда начинать карту: место пользователя, иначе центр его города
+  const mapCenter =
+    user?.hasLocation && typeof user.lat === 'number'
+      ? { lat: user.lat, lng: user.lng }
+      : CITY_CENTERS[user?.city] || CITY_CENTERS['Москва'];
+
+  const handleRetryPhotos = async (files) => {
+    if (!submittedIncident?.rawId || files.length === 0) return;
+    setRetryingPhotos(true);
+    try {
+      const { failed } = await onUploadPhotos(submittedIncident.rawId, files);
+      setFailedPhotos(failed);
+    } catch (error) {
+      setFailedPhotos(files.map((file) => ({ file, message: error.message })));
+    } finally {
+      setRetryingPhotos(false);
+    }
+  };
+
+  const handleRetryFileChange = (e) => {
+    const files = Array.from(e.target.files || []).filter(
+      (file) => PHOTO_TYPES.includes(file.type) && file.size <= MAX_PHOTO_BYTES
+    );
+    e.target.value = '';
+    handleRetryPhotos(files.slice(0, failedPhotos.length));
   };
 
   const handleSubmit = async (e) => {
@@ -150,10 +197,12 @@ export default function ReportPage({
         photoFiles: photos.map((p) => p.file),
       });
       setSubmittedIncident(result?.incident || null);
-      setPhotoError(result?.photoError || '');
+      setFailedPhotos(result?.failedPhotos || []);
       setDescription('');
       setAddress('');
       setCoordinates(null);
+      setCoordinatesSource(null);
+      setShowMap(false);
       setAccuracy(null);
       setLocationError('');
       setPhotoNote('');
@@ -162,6 +211,7 @@ export default function ReportPage({
     } catch (error) {
       // поля не очищаем: человек правит и отправляет снова
       setSubmitError(error.message || 'Не удалось отправить обращение');
+      if (error.status === 400 && !coordinates) setShowMap(true); // место не определилось
     } finally {
       setSubmitting(false);
     }
@@ -343,10 +393,40 @@ export default function ReportPage({
                   <span>
                     Её видят другие жители. Служба 112 о ней не знает — при опасности звоните сами.
                   </span>
-                  {photoError && (
+                  {failedPhotos.length > 0 && (
                     <span className="report-submit-error" role="alert">
-                      Метка создана, но фото не загрузились: {photoError}. Отправлять форму ещё раз
-                      не нужно — будет дубль.
+                      Метка создана, но не загрузились фото:{' '}
+                      {failedPhotos.map((f) => f.message).join('; ')}. Форму ещё раз не отправляйте
+                      — будет дубль; фото можно дослать к этой метке.
+                    </span>
+                  )}
+                  {failedPhotos.length > 0 && submittedIncident.rawId && onUploadPhotos && (
+                    <span className="report-photo-retry">
+                      <input
+                        ref={retryInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        onChange={handleRetryFileChange}
+                        className="report-file-hidden"
+                        aria-label="Выбрать другие фото для метки"
+                      />
+                      <button
+                        type="button"
+                        disabled={retryingPhotos}
+                        onClick={() => handleRetryPhotos(failedPhotos.map((f) => f.file))}
+                        className="report-success-banner__link"
+                      >
+                        {retryingPhotos ? 'Загружаем...' : 'Повторить загрузку'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={retryingPhotos}
+                        onClick={() => retryInputRef.current?.click()}
+                        className="report-success-banner__link"
+                      >
+                        Выбрать другие фото
+                      </button>
                     </span>
                   )}
                 </div>
@@ -428,22 +508,46 @@ export default function ReportPage({
                 >
                   {locating
                     ? 'Определяем место…'
-                    : coordinates
+                    : coordinatesSource === 'gps'
                       ? 'Определить заново'
                       : 'Определить по геолокации'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMap((shown) => !shown)}
+                  className="report-address-hint__geo-btn"
+                  aria-expanded={showMap}
+                >
+                  {showMap ? 'Скрыть карту' : 'Указать на карте'}
+                </button>
               </div>
+              {showMap && (
+                <Suspense fallback={<p className="report-location-note">Загружаем карту…</p>}>
+                  <LocationPicker
+                    value={coordinates}
+                    center={mapCenter}
+                    onChange={handlePickOnMap}
+                  />
+                </Suspense>
+              )}
               {coordinates && (
                 <p className="report-location-note">
-                  Место определено по геолокации
-                  {typeof accuracy === 'number' ? ` (точность ${accuracy} м)` : ''}. Уточните адрес
-                  или ориентир словами.
+                  {coordinatesSource === 'map'
+                    ? 'Точка отмечена на карте — коснитесь карты, чтобы её сдвинуть.'
+                    : `Место определено по геолокации${
+                        typeof accuracy === 'number' ? ` (точность ${accuracy} м)` : ''
+                      }.`}{' '}
+                  Уточните адрес или ориентир словами.
                 </p>
               )}
               {!coordinates && !locationError && user?.hasLocation === false && (
                 <p className="report-location-note">
-                  Чтобы метка попала на карту, нужно место: нажмите «Определить по геолокации».
+                  Чтобы метка попала на карту, нужно место: нажмите «Определить по геолокации» или
+                  отметьте точку на карте.
                 </p>
+              )}
+              {showMap && !coordinates && (
+                <p className="report-location-note">Коснитесь карты в месте происшествия.</p>
               )}
               {locationError && (
                 <p className="report-submit-error" role="alert">
@@ -466,7 +570,7 @@ export default function ReportPage({
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Опишите, что произошло, есть ли пострадавшие и какие службы нужны"
+                placeholder="Опишите, что произошло, есть ли пострадавшие и чем могут помочь соседи"
                 className="report-textarea"
                 data-node-id="3149:1752"
               />

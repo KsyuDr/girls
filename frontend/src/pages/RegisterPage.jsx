@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Siren,
@@ -38,6 +38,40 @@ export default function RegisterPage({
   const [step, setStep] = useState('form');
   const [sentPhone, setSentPhone] = useState('');
   const [code, setCode] = useState('');
+  // Новый код можно запросить не раньше чем через минуту (так считает и сервер)
+  const [resendIn, setResendIn] = useState(0);
+  const [resending, setResending] = useState(false);
+  const [resendNote, setResendNote] = useState('');
+
+  useEffect(() => {
+    if (resendIn <= 0) return undefined;
+    const timer = setTimeout(() => setResendIn((left) => left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
+  // Запрос кода: вход — по номеру, регистрация — той же анкетой (на 409 api.js сам сделает вход)
+  const requestCode = (targetPhone) =>
+    mode === 'login'
+      ? loginUser(targetPhone)
+      : registerUser({ name, phone: targetPhone, city, geolocationEnabled });
+
+  const handleResend = async () => {
+    setResending(true);
+    setResendNote('');
+    setErrors({});
+    try {
+      await requestCode(sentPhone);
+      setCode('');
+      setResendIn(60);
+      setResendNote('Новый код отправлен');
+    } catch (error) {
+      const wait = Number(error?.retryAfter) || 0;
+      if (wait > 0) setResendIn(wait);
+      setErrors({ code: error.message });
+    } finally {
+      setResending(false);
+    }
+  };
 
   const validateField = (field, value) => {
     if (field === 'name') {
@@ -105,21 +139,15 @@ export default function RegisterPage({
 
     setIsSubmitting(true);
     try {
-      const result =
-        mode === 'login'
-          ? await loginUser(phone)
-          : await registerUser({
-              name,
-              phone,
-              city,
-              geolocationEnabled,
-            });
+      const result = await requestCode(phone);
       if (result.user) {
         onSuccess?.(result.user);
       } else {
         setSentPhone(result.phone || phone);
         setCode('');
         setErrors({});
+        setResendNote('');
+        setResendIn(60);
         setStep('code');
       }
     } catch (error) {
@@ -150,7 +178,7 @@ export default function RegisterPage({
             Помощь рядом, когда она нужна
           </h1>
           <p className="reg-hero__subtitle" data-node-id="3149:23">
-            Экстренный вызов, оповещения городских служб и карта опасных мест — в одном приложении
+            SOS близким, оповещения для жителей и карта опасных мест — в одном приложении
           </p>
 
           <div className="reg-hero__features" data-node-id="3149:58">
@@ -160,10 +188,10 @@ export default function RegisterPage({
               </div>
               <div className="reg-hero__feature-text">
                 <span className="reg-hero__feature-title" data-node-id="3149:35">
-                  SOS одним нажатием
+                  SOS близким
                 </span>
                 <span className="reg-hero__feature-desc" data-node-id="3149:36">
-                  Координаты уходят вашим близким
+                  Удерживайте кнопку 3 секунды — близкие получат SMS с вашим местом
                 </span>
               </div>
             </div>
@@ -296,16 +324,35 @@ export default function RegisterPage({
                   {errors.code}
                 </span>
               )}
-              <button
-                type="button"
-                className="reg-login-row__link"
-                onClick={() => {
-                  setStep('form');
-                  setErrors({});
-                }}
-              >
-                Изменить номер
-              </button>
+              {resendNote && !errors.code && (
+                <span className="reg-field-label" role="status">
+                  {resendNote}
+                </span>
+              )}
+              <div className="reg-code-actions">
+                <button
+                  type="button"
+                  className="reg-login-row__link"
+                  onClick={handleResend}
+                  disabled={resendIn > 0 || resending}
+                >
+                  {resending
+                    ? 'Отправляем...'
+                    : resendIn > 0
+                      ? `Отправить код ещё раз через ${resendIn} с`
+                      : 'Отправить код ещё раз'}
+                </button>
+                <button
+                  type="button"
+                  className="reg-login-row__link"
+                  onClick={() => {
+                    setStep('form');
+                    setErrors({});
+                  }}
+                >
+                  Изменить номер
+                </button>
+              </div>
             </div>
           )}
 

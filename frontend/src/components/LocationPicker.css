@@ -1,0 +1,15 @@
+.location-picker {
+  width: 100%;
+  height: 260px;
+  border-radius: 12px;
+  border: 1px solid #dfe5eb;
+  overflow: hidden;
+  z-index: 0;
+  cursor: crosshair;
+}
+
+@media (max-width: 1024px) {
+  .location-picker {
+    height: 220px;
+  }
+}

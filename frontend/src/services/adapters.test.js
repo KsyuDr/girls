@@ -6,12 +6,14 @@ import {
   adaptSos,
   adaptUser,
   distanceMeters,
+  elapsedLabel,
   formatDistance,
   formatPhone,
   makeProjection,
   nearCenter,
   pickMapCenter,
   plural,
+  shortDateTime,
   timeAgo,
 } from './adapters';
 
@@ -114,6 +116,24 @@ describe('форматтеры', () => {
   });
 });
 
+describe('время в панели модератора', () => {
+  it('elapsedLabel переводит минуты в часы и дни', () => {
+    expect(elapsedLabel(30 * 1000)).toBe('только что');
+    expect(elapsedLabel(25 * 60000)).toBe('25 мин назад');
+    expect(elapsedLabel(185 * 60000)).toBe('3 ч 5 мин назад');
+    expect(elapsedLabel(1405 * 60000)).toBe('23 ч 25 мин назад');
+    expect(elapsedLabel(3000 * 60000)).toBe('2 дн 2 ч назад');
+  });
+
+  it('shortDateTime: у старых меток есть дата', () => {
+    const now = new Date(2026, 10, 10, 15, 0);
+
+    expect(shortDateTime(new Date(2026, 10, 10, 14, 5).toISOString(), now)).toBe('14:05');
+    expect(shortDateTime(new Date(2026, 10, 9, 9, 30).toISOString(), now)).toBe('вчера, 09:30');
+    expect(shortDateTime(new Date(2026, 10, 2, 8, 0).toISOString(), now)).toBe('2 ноября, 08:00');
+  });
+});
+
 describe('пользователь и SOS', () => {
   it('adaptUser: hasLocation и адрес, когда места нет', () => {
     const known = adaptUser(user());
@@ -143,6 +163,7 @@ describe('пользователь и SOS', () => {
 
     expect(sos.notifiedContacts).toEqual([]);
     expect(sos.coordinates).toBe('—');
+    expect(sos.hasLocation).toBe(false);
     expect(sos.address).toBe('Местоположение неизвестно');
   });
 
@@ -160,6 +181,7 @@ describe('пользователь и SOS', () => {
 
     expect(sos.address).toBe('Адрес не указан');
     expect(sos.coordinates).toBe('55.7616, 37.6094');
+    expect(sos.hasLocation).toBe(true);
   });
 
   it('adaptModerationSos: имя, телефон и число получивших', () => {
@@ -287,6 +309,32 @@ describe('adaptDashboard', () => {
     expect(result.operatorStats.activeSos).toBe(1);
     expect(result.operatorIncidents[0].status).toBe('hidden');
     expect(result.operatorIncidents[0].statusLabel).toBe('Скрыто');
+    expect(result.operatorAlerts).toEqual([]);
+  });
+
+  it('модератор получает и снятые с публикации оповещения', () => {
+    const alert = {
+      id: 5,
+      title: 'Ошибочное',
+      subtitle: null,
+      description: 'Опубликовано по ошибке',
+      level: 'critical',
+      locationLabel: 'Весь город',
+      sourceLabel: null,
+      actionsChecklist: [],
+      isPublished: false,
+      createdAt: '2026-11-10T12:00:00Z',
+      updatedAt: '2026-11-10T12:00:00Z',
+    };
+    const result = adaptDashboard(
+      dashboard({
+        user: user({ role: 'moderator' }),
+        moderation: { incidents: [], activeSos: [], stats: {}, alerts: [alert] },
+      })
+    );
+
+    expect(result.alerts).toEqual([]);
+    expect(result.operatorAlerts[0]).toMatchObject({ id: 5, isPublished: false, rawSubtitle: '' });
   });
 
   it('гость: пустые контакты, не модератор', () => {

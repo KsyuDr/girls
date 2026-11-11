@@ -253,11 +253,11 @@ export default function ContactsPage({
               aria-hidden="true"
             />
             <p className="contacts-info-banner__text contacts-info-banner__text--desktop">
-              Когда вы нажмёте SOS, эти люди получат SMS и push-уведомление с вашими координатами.
-              Выключите переключатель, если человек не должен получать сигнал.
+              Когда вы нажмёте SOS, эти люди получат SMS с вашими координатами (если место
+              известно). Выключите переключатель, если человек не должен получать сигнал.
             </p>
             <p className="contacts-info-banner__text contacts-info-banner__text--mobile">
-              Когда вы нажмёте SOS, эти люди получат SMS и push с вашими координатами
+              Когда вы нажмёте SOS, эти люди получат SMS с вашими координатами
             </p>
           </div>
 
@@ -437,7 +437,7 @@ export default function ContactsPage({
                   2. Контакты получают сигнал
                 </h3>
                 <p className="contacts-how__step-desc" data-node-id="3149:738">
-                  SMS и push со ссылкой на ваше местоположение
+                  SMS с координатами, если телефон смог определить место
                 </p>
               </article>
 
@@ -446,10 +446,10 @@ export default function ContactsPage({
                   <MapPin size={24} color="#007DA5" strokeWidth={2} aria-hidden="true" />
                 </div>
                 <h3 className="contacts-how__step-title" data-node-id="3149:745">
-                  3. Видят вас на карте
+                  3. Отбой — тоже по SMS
                 </h3>
                 <p className="contacts-how__step-desc" data-node-id="3149:746">
-                  Координаты обновляются, пока включён экстренный режим
+                  Когда вы нажмёте «Я в безопасности», близкие узнают, что всё в порядке
                 </p>
               </article>
             </div>

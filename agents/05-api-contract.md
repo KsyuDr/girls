@@ -18,7 +18,10 @@
 | `togglePushNotifications` | `PATCH /user/notifications` | 1 |
 | `addEmergencyContact`, `toggleContactSos`, `deleteEmergencyContact` | `POST /contacts`, `PATCH /contacts/{id}`, `DELETE /contacts/{id}` | 3 |
 | `submitIncidentReport` | `POST /incidents` + `POST /incidents/{id}/photos` | 4 |
-| `sendSosSignal`, `cancelSosSignal` | `POST /sos` (сразу, координаты досылаются вторым `POST /sos`), `POST /sos/{id}/cancel` | 5 |
+| `sendSosSignal`, `cancelSosSignal` | `POST /sos` (сразу, координаты досылаются `POST /sos/{id}/location`), `POST /sos/{id}/cancel` | 5 |
+| `getSosSignal` | `GET /sos/{id}` — чем закончился сигнал | 5 |
+| `uploadIncidentPhotos` | `POST /incidents/{id}/photos` по одному файлу | 4 |
+| `updateCityAlert` | `PATCH /alerts/{id}` | 6 |
 | `resolveSos` | `POST /moderation/sos/{id}/resolve` | 7 |
 | `createCityAlert` | `POST /alerts` | 6 |
 | `updateIncidentStatus` | `PATCH /moderation/incidents/{id}` | 7 |
@@ -104,7 +107,7 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 `author` = `{id, name: "Полина И.", phone: null}` или `null` у анонимной метки;
 `photos[]` = `{id, url: "/media/...", contentType, sizeBytes}` (автору и модератору — `url` с `?key=...`:
 по такой ссылке фото открывается и у скрытой метки; без подписи фото скрытой метки — 404);
-`responses` — список откликов только автору, остальным `null`;
+`responses` — список откликов только автору, остальным `null` (телефон — только у действующих откликов);
 `response` = `{id, incidentId, user: {id, name, phone}, message, status, createdAt}` (`phone` — только автору метки).
 
 `POST /incidents`: `lat`/`lng` необязательны — тогда берётся последнее местоположение пользователя.
@@ -125,6 +128,8 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 | `GET /sos/active` | вход | — | активный сигнал или `null` |
 | `POST /sos/{id}/cancel` | вход | — | сигнал |
 | `POST /sos/active/cancel` | вход | — | отменить текущий активный сигнал |
+| `GET /sos/{id}` | вход | — | свой сигнал, в том числе завершённый; чужой — 404 |
+| `POST /sos/{id}/location` | вход | `{lat, lng, address?, accuracyMeters?}` | сигнал; 409, если он уже завершён (новый не создаётся) |
 
 `sos` = `{id, status, lat, lng, address, accuracyMeters, startedAt, endedAt, notifiedContacts}`,
 `notifiedContacts[]` = `{id, contactId, name, relation, phone, channel, status}`, `status` доставки —
@@ -135,7 +140,7 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 
 | Метод и путь | Доступ | Тело / параметры | Ответ |
 |---|---|---|---|
-| `GET /alerts` | все | `level` | лента |
+| `GET /alerts` | все | `level`, `includeUnpublished` | лента; `includeUnpublished=true` — только модератору (иначе 403) |
 | `GET /alerts/{id}` | все | — | оповещение (снятое с публикации — только модератору) |
 | `POST /alerts` | модератор | `{title, subtitle?, description, level?, locationLabel?, sourceLabel?, actionsChecklist?, isPublished?}` | оповещение, 201 |
 | `PATCH /alerts/{id}` | модератор | любые поля оповещения, `isPublished` | оповещение |
@@ -162,5 +167,6 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 |---|---|---|
 | `GET /dashboard` | все (с токеном — плюс личные данные) | `{isAuthenticated, user, reference, alerts, places, incidents, contacts, activeSos, moderation}` |
 
-`user` и `activeSos` — `null` у гостя, `contacts` — пустой список; `moderation` = `{incidents, activeSos, stats}`
+`user` и `activeSos` — `null` у гостя, `contacts` — пустой список; `moderation` = `{incidents, activeSos, stats, alerts}`
+(`alerts` — все оповещения, включая снятые с публикации)
 только модератору. Форму `getDashboardData` из ответа собирает `adaptDashboard` в `frontend/src/services/adapters.js`.

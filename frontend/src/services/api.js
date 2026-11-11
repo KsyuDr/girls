@@ -65,11 +65,12 @@ export function logout() {
 
 /** Ошибка API: message — текст для пользователя из поля detail. */
 export class ApiError extends Error {
-  constructor(status, message, detail) {
+  constructor(status, message, detail, retryAfter = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
+    this.retryAfter = retryAfter; // секунды из заголовка Retry-After (429)
   }
 }
 
@@ -109,7 +110,8 @@ async function request(path, { method = 'GET', body, form, fallback = 'Ошиб�
     } catch {
       detail = undefined;
     }
-    throw new ApiError(response.status, errorMessage(detail, fallback), detail);
+    const retryAfter = Number(response.headers?.get?.('Retry-After')) || null;
+    throw new ApiError(response.status, errorMessage(detail, fallback), detail, retryAfter);
   }
   if (response.status === 204) return null;
   return response.json();
@@ -425,17 +427,28 @@ export async function sendSosSignal(coordinates, { onLocationUpdate } = {}) {
   };
 }
 
-/** Досылает координаты, но только пока именно этот сигнал ещё активен (иначе создался бы новый). */
+/**
+ * Досылает координаты именно к этому сигналу. Сервер никогда не создаёт по этому запросу новый
+ * SOS: если сигнал уже завершён (отменён на другом устройстве, «помощь пришла») — ответ 409.
+ */
 async function refineSosLocation(sosId, onLocationUpdate) {
   try {
     const position = await getBrowserPosition();
     if (!position || cancelledSos.has(sosId)) return;
-    const active = await request('/sos/active');
-    if (!active || active.id !== sosId || cancelledSos.has(sosId)) return;
-    const updated = await request('/sos', { method: 'POST', body: position });
-    if (updated.id === sosId) onLocationUpdate?.(adaptSos(updated));
+    const updated = await request(`/sos/${sosId}/location`, { method: 'POST', body: position });
+    onLocationUpdate?.(adaptSos(updated));
   } catch {
-    // сигнал уже отправлен; потеря уточнения не критична
+    // сигнал уже отправлен; потеря уточнения не критична, 409 — сигнал уже завершён
+  }
+}
+
+/** Свой сигнал по id, в том числе завершённый: чем он закончился. null, если узнать не удалось. */
+export async function getSosSignal(sosId) {
+  if (USE_MOCK) return null;
+  try {
+    return adaptSos(await request(`/sos/${sosId}`));
+  } catch {
+    return null;
   }
 }
 
@@ -586,11 +599,18 @@ export async function togglePushNotifications(enabled) {
  * Отправить метку и приложить фото (payload.photoFiles — массив File).
  * Место: payload.coordinates ({lat, lng}) из формы, иначе координаты браузера, иначе последнее
  * известное место профиля (его подставит сервер).
- * Возвращает {incident: {id: '#1049'}, photoError?} — photoError, если метка создана, а фото нет.
+ * Возвращает {incident: {id: '#1049', rawId}, failedPhotos?} — failedPhotos ([{file, message}]),
+ * если метка создана, а часть фото нет.
  */
 export async function submitIncidentReport(payload) {
   if (!USE_MOCK) {
-    const point = payload.coordinates || (await getBrowserPosition());
+    let point = payload.coordinates;
+    let locateError = null;
+    if (!point) {
+      const located = await locate();
+      point = located.position ?? null;
+      locateError = located.error ?? null;
+    }
     let incident;
     try {
       incident = await request('/incidents', {
@@ -606,27 +626,20 @@ export async function submitIncidentReport(payload) {
       });
     } catch (error) {
       if (error.status === 400 && /геолокаци/.test(error.message)) {
-        throw new ApiError(400, `Не удалось определить место. ${LOCATION_HELP.denied}`);
+        const help = LOCATION_HELP[locateError] || LOCATION_HELP.unavailable;
+        throw new ApiError(
+          400,
+          `Не удалось определить место. Отметьте точку на карте ниже. ${help}`,
+          error.detail
+        );
       }
       throw error;
     }
 
     const result = { incident: { id: `#${incident.id}`, rawId: incident.id } };
-    const files = (payload.photoFiles || []).filter(Boolean);
-    if (files.length > 0) {
-      const form = new FormData();
-      files.slice(0, 4).forEach((file) => form.append('files', file));
-      try {
-        await request(`/incidents/${incident.id}/photos`, {
-          method: 'POST',
-          form,
-          fallback: 'Фото загрузить не удалось',
-        });
-      } catch (error) {
-        // метка уже создана — повторная отправка формы дала бы дубль
-        result.photoError = error.message;
-      }
-    }
+    // Метка уже создана: ошибка фото не повод отправлять форму ещё раз (будет дубль)
+    const { failed } = await uploadIncidentPhotos(incident.id, payload.photoFiles || []);
+    if (failed.length > 0) result.failedPhotos = failed;
     return result;
   }
 
@@ -664,12 +677,38 @@ export async function submitIncidentReport(payload) {
   return { incident: newIncident, incidents: updatedIncidents };
 }
 
-/** Панель модератора: смена статуса. Возвращает весь список меток панели. */
+/**
+ * Фото к уже созданной метке — по одному файлу, чтобы битый файл не отменял остальные.
+ * Возвращает {failed: [{file, message}]}.
+ */
+export async function uploadIncidentPhotos(incidentId, files) {
+  const failed = [];
+  for (const file of files.filter(Boolean).slice(0, 4)) {
+    const form = new FormData();
+    form.append('files', file);
+    try {
+      await request(`/incidents/${incidentId}/photos`, {
+        method: 'POST',
+        form,
+        fallback: 'Фото загрузить не удалось',
+      });
+    } catch (error) {
+      if (error.status === 401) throw error;
+      failed.push({ file, message: error.message });
+    }
+  }
+  return { failed };
+}
+
+/**
+ * Панель модератора: смена статуса и заметки (note — строка; пустая стирает заметку,
+ * undefined — не менять). Возвращает весь список меток панели.
+ */
 export async function updateIncidentStatus(incidentId, nextStatus, assignedService) {
   if (!USE_MOCK) {
     const id = String(incidentId).replace(/\D/g, ''); // «#1048» → 1048
     const body = { status: nextStatus };
-    if (assignedService) body.moderatorNote = assignedService;
+    if (assignedService !== undefined) body.moderatorNote = assignedService;
     await request(`/moderation/incidents/${id}`, {
       method: 'PATCH',
       body,
@@ -706,6 +745,26 @@ export async function updateIncidentStatus(incidentId, nextStatus, assignedServi
 }
 
 // ---------- оповещения ----------
+
+/** Модератор правит оповещение или снимает его с публикации (patch.isPublished = false). */
+export async function updateCityAlert(alertId, patch) {
+  if (USE_MOCK) {
+    const alerts = getStoredAlerts().map((a) => (a.id === alertId ? { ...a, ...patch } : a));
+    saveStoredAlerts(alerts);
+    return alerts;
+  }
+  const body = { ...patch };
+  for (const field of ['subtitle', 'locationLabel', 'sourceLabel']) {
+    if (typeof body[field] === 'string') body[field] = body[field].trim() || null;
+  }
+  return adaptAlert(
+    await request(`/alerts/${alertId}`, {
+      method: 'PATCH',
+      body,
+      fallback: 'Не удалось изменить оповещение',
+    })
+  );
+}
 
 /** Модератор публикует оповещение. Возвращает всю ленту. */
 export async function createCityAlert(payload) {
