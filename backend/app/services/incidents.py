@@ -339,9 +339,11 @@ def _common_fields(incident: Incident, viewer: User | None, distance: int | None
         ],
         "responses_count": sum(r.status == RESPONSE_ACTIVE for r in incident.responses),
         "my_response": response_out(mine) if mine else None,
-        # Автору — кто откликнулся и как связаться
+        # Автору — кто откликнулся и как связаться (телефон — только у действующих откликов)
         "responses": (
-            [response_out(r, with_phone=True) for r in incident.responses] if is_mine else None
+            [response_out(r, with_phone=r.status == RESPONSE_ACTIVE) for r in incident.responses]
+            if is_mine
+            else None
         ),
         "distance_meters": distance,
         "created_at": incident.created_at,

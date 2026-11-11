@@ -13,6 +13,7 @@ class ModerationDashboardOut(CamelModel):
     incidents: list[ModerationIncidentOut]
     active_sos: list[ModerationSosOut]
     stats: StatsOut
+    alerts: list[AlertOut]  # все оповещения, включая снятые с публикации
 
 
 class DashboardOut(CamelModel):

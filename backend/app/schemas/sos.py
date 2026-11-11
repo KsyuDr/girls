@@ -27,6 +27,17 @@ class SosCreateIn(CamelModel):
         return self
 
 
+class SosLocationIn(CamelModel):
+    """Досылка координат браузера к уже отправленному сигналу."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    lat: Annotated[float, Field(ge=-90, le=90)]
+    lng: Annotated[float, Field(ge=-180, le=180)]
+    address: Annotated[str, Field(max_length=200)] | None = None
+    accuracy_meters: Annotated[float, Field(ge=0, le=100_000)] | None = None
+
+
 class DeliveryOut(CamelModel):
     id: int
     contact_id: int | None  # null, если контакт потом удалили

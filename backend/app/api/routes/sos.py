@@ -2,7 +2,7 @@ from fastapi import APIRouter, Response, status
 
 from app.api.deps import CurrentUser
 from app.db.session import SessionDep
-from app.schemas.sos import SosCreateIn, SosOut
+from app.schemas.sos import SosCreateIn, SosLocationIn, SosOut
 from app.services import sos as service
 
 router = APIRouter(prefix="/sos", tags=["sos"])
@@ -39,3 +39,20 @@ async def cancel_active(user: CurrentUser, session: SessionDep) -> SosOut:
 @router.post("/{sos_id}/cancel", response_model=SosOut, summary="Отменить сигнал по id")
 async def cancel_sos(sos_id: int, user: CurrentUser, session: SessionDep) -> SosOut:
     return service.sos_out(await service.cancel_sos(session, user, sos_id))
+
+
+@router.get("/{sos_id}", response_model=SosOut, summary="Мой сигнал по id (и завершённый)")
+async def get_sos(sos_id: int, user: CurrentUser, session: SessionDep) -> SosOut:
+    return service.sos_out(await service.get_own_sos(session, user, sos_id))
+
+
+@router.post(
+    "/{sos_id}/location",
+    response_model=SosOut,
+    summary="Дослать координаты к этому сигналу (новый сигнал не создаёт)",
+    responses={409: {"description": "Сигнал уже завершён"}},
+)
+async def update_location(
+    sos_id: int, data: SosLocationIn, user: CurrentUser, session: SessionDep
+) -> SosOut:
+    return service.sos_out(await service.update_location(session, user, sos_id, data))

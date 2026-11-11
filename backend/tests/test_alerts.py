@@ -185,3 +185,20 @@ async def test_update_alert_clears_optional_fields(client: AsyncClient, login_as
     assert edited.json()["subtitle"] is None
     assert edited.json()["sourceLabel"] is None
     assert edited.json()["locationLabel"] == "Весь город"
+
+
+async def test_moderator_lists_unpublished_alerts(client: AsyncClient, login_as: LoginAs) -> None:
+    headers = await moderator(login_as)
+    user = await login_as()
+    shown = await publish(client, headers, title="Опубликованное")
+    hidden = await publish(client, headers, title="Снятое", isPublished=False)
+    url = "/api/alerts?includeUnpublished=true"
+
+    for_moderator = await client.get(url, headers=headers)
+
+    assert [a["id"] for a in for_moderator.json()] == [hidden["id"], shown["id"]]
+    assert [a["id"] for a in (await client.get("/api/alerts", headers=headers)).json()] == [
+        shown["id"]
+    ]
+    assert (await client.get(url, headers=user)).status_code == 403
+    assert (await client.get(url)).status_code == 403

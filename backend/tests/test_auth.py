@@ -357,3 +357,9 @@ async def test_prod_does_not_log_or_fake_code(
     assert PHONE not in caplog.text  # номер в логе маскирован
     assert "+7912***6789" in caplog.text
     assert await db.scalar(select(func.count()).select_from(AuthCode)) == 0
+
+
+async def test_register_rejects_blank_name(client: AsyncClient) -> None:
+    response = await client.post("/api/auth/register", json={**REGISTER, "name": "   "})
+
+    assert response.status_code == 422

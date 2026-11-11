@@ -161,3 +161,11 @@ async def test_update_profile_needs_both_coordinates(
     assert half_null.status_code == 422
     assert (both.json()["lastLat"], both.json()["lastLng"]) == (55.75, 37.62)
     assert (cleared.json()["lastLat"], cleared.json()["lastLng"]) == (None, None)
+
+
+async def test_update_profile_rejects_blank_name(client: AsyncClient, login_as: LoginAs) -> None:
+    headers = await login_as()
+
+    response = await client.patch("/api/users/me", headers=headers, json={"name": "     "})
+
+    assert response.status_code == 422

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Self
 
-from pydantic import AfterValidator, Field, model_validator
+from pydantic import AfterValidator, Field, StringConstraints, model_validator
 
 from app.core.phone import normalize_phone
 from app.reference import CITIES
@@ -16,7 +16,8 @@ def _check_city(value: str) -> str:
 
 
 Phone = Annotated[str, AfterValidator(normalize_phone)]
-Name = Annotated[str, Field(min_length=2, max_length=100)]
+# Пробелы по краям обрезаются до проверки длины: имя из одних пробелов — 422
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
 City = Annotated[str, Field(min_length=2, max_length=60), AfterValidator(_check_city)]
 
 

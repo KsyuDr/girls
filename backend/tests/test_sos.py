@@ -254,3 +254,94 @@ async def test_cancel_and_resolve_at_once(
         final = cancel.json()["status"] if cancel.status_code == 200 else "resolved"
         assert (resolve.status_code == 200) == (final == "resolved")
         assert ("cancelled" in caplog.text) == (cancel.status_code == 200)
+
+
+async def test_parallel_sos_unique_violation_returns_existing_signal(
+    client: AsyncClient, login_as: LoginAs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Гонка двух нажатий SOS: оба не нашли активный сигнал, второй INSERT упал на уникальном
+    индексе. Ответ должен быть 200 с уже созданным сигналом, а не 500."""
+    from app.services import sos as sos_service
+
+    headers = await login_as()
+    first = await client.post("/api/sos", headers=headers, json=WHERE)
+    real_get_active = sos_service.get_active
+    calls = 0
+
+    async def stale_get_active(session: AsyncSession, user_id: int) -> SosSignal | None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:  # как будто параллельный запрос ещё не закоммитил свой сигнал
+            return None
+        return await real_get_active(session, user_id)
+
+    monkeypatch.setattr(sos_service, "get_active", stale_get_active)
+    second = await client.post("/api/sos", headers=headers, json=WHERE)
+
+    assert second.status_code == 200
+    assert second.json()["id"] == first.json()["id"]
+
+
+async def test_location_updates_only_this_signal(client: AsyncClient, login_as: LoginAs) -> None:
+    headers = await login_as()
+    sos = (await client.post("/api/sos", headers=headers)).json()
+    url = f"/api/sos/{sos['id']}/location"
+
+    updated = await client.post(url, headers=headers, json=WHERE)
+
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    assert (body["id"], body["lat"], body["lng"]) == (sos["id"], 55.7539, 37.6208)
+    assert body["address"] == "Красная площадь"
+    assert body["accuracyMeters"] == 8
+    me = (await client.get("/api/users/me", headers=headers)).json()
+    assert (me["lastLat"], me["lastLng"]) == (55.7539, 37.6208)
+
+
+async def test_location_after_finish_never_creates_signal(
+    client: AsyncClient, login_as: LoginAs, db: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Модератор завершил сигнал до досылки координат: новый SOS и повторные SMS не появляются."""
+    headers = await login_as()
+    moderator = await login_as(phone="+79120000099", role="moderator")
+    await add_contact(client, headers, "+79220000001")
+    sos = (await client.post("/api/sos", headers=headers)).json()
+    await client.post(f"/api/moderation/sos/{sos['id']}/resolve", headers=moderator)
+    caplog.set_level(logging.WARNING, logger="safe_city.sms")
+    caplog.clear()  # SMS о самом сигнале уже ушла
+
+    late = await client.post(f"/api/sos/{sos['id']}/location", headers=headers, json=WHERE)
+
+    assert late.status_code == 409
+    assert "помощь пришла" in late.json()["detail"]
+    assert await db.scalar(select(func.count()).select_from(SosSignal)) == 1
+    assert "+79220000001" not in caplog.text
+
+
+async def test_location_errors(client: AsyncClient, login_as: LoginAs) -> None:
+    owner = await login_as()
+    stranger = await login_as(phone="+79120000002")
+    sos = (await client.post("/api/sos", headers=owner)).json()
+    url = f"/api/sos/{sos['id']}/location"
+
+    assert (await client.post(url, json=WHERE)).status_code == 401
+    assert (await client.post(url, headers=stranger, json=WHERE)).status_code == 404
+    assert (
+        await client.post("/api/sos/999999/location", headers=owner, json=WHERE)
+    ).status_code == 404
+    assert (await client.post(url, headers=owner, json={"lat": 55.75})).status_code == 422
+
+
+async def test_get_own_signal_shows_how_it_ended(client: AsyncClient, login_as: LoginAs) -> None:
+    owner = await login_as()
+    stranger = await login_as(phone="+79120000002")
+    sos = (await client.post("/api/sos", headers=owner)).json()
+    await client.post(f"/api/sos/{sos['id']}/cancel", headers=owner)
+    url = f"/api/sos/{sos['id']}"
+
+    own = await client.get(url, headers=owner)
+
+    assert own.status_code == 200
+    assert own.json()["status"] == "cancelled"
+    assert (await client.get(url, headers=stranger)).status_code == 404
+    assert (await client.get(url)).status_code == 401

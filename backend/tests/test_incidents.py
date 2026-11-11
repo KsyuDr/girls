@@ -609,3 +609,19 @@ async def test_closing_marks_responses_done(client: AsyncClient, login_as: Login
     assert closed.json()["responses"][0]["status"] == "done"
     assert closed.json()["responsesCount"] == 0
     assert late.status_code == 409
+
+
+async def test_author_does_not_see_phone_of_cancelled_helper(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    polina, ivan = await two_users(login_as)
+    incident = await create(client, polina, type="help_needed", description="Нужна таблетка")
+    url = f"/api/incidents/{incident['id']}"
+    await client.post(f"{url}/responses", headers=ivan)
+    await client.delete(f"{url}/responses/me", headers=ivan)
+
+    for_author = (await client.get(url, headers=polina)).json()
+
+    assert all(
+        r["user"]["phone"] is None for r in for_author["responses"] if r["status"] != "active"
+    )

@@ -86,6 +86,20 @@ async def test_dashboard_for_moderator(client: AsyncClient, login_as: LoginAs) -
     assert moderation["incidents"][0]["author"]["phone"] == "+79120000001"
     assert len(moderation["activeSos"]) == 1
     assert moderation["stats"]["hidden"] == 1
+    assert moderation["alerts"] == []
+
+
+async def test_dashboard_gives_moderator_unpublished_alerts(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    mod = await login_as(phone="+79120000099", role="moderator")
+    alert = {"title": "Ошибочное", "description": "Опубликовано по ошибке", "isPublished": False}
+    created = (await client.post("/api/alerts", headers=mod, json=alert)).json()
+
+    body = (await client.get("/api/dashboard", headers=mod)).json()
+
+    assert body["alerts"] == []
+    assert [a["id"] for a in body["moderation"]["alerts"]] == [created["id"]]
 
 
 async def test_dashboard_rejects_bad_token(client: AsyncClient) -> None:

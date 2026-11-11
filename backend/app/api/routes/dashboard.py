@@ -58,6 +58,12 @@ async def dashboard(session: SessionDep, viewer: OptionalUser) -> DashboardOut:
                 ],
                 active_sos=[sos_service.moderation_sos_out(s) for s in signals],
                 stats=await moderation_service.stats(session),
+                alerts=[
+                    AlertOut.model_validate(a)
+                    for a in await alerts_service.list_alerts(
+                        session, include_unpublished=True, limit=DASHBOARD_ALERTS
+                    )
+                ],
             )
 
     return DashboardOut(

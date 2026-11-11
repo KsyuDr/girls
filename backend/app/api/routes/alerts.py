@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import ModeratorUser, OptionalUser
+from app.core.errors import ForbiddenError
 from app.db.session import SessionDep
 from app.schemas.alert import AlertCreateIn, AlertLevel, AlertOut, AlertUpdateIn
 from app.services import alerts as service
@@ -13,13 +14,25 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 @router.get("", response_model=list[AlertOut], summary="Лента оповещений, новые сверху")
 async def list_alerts(
     session: SessionDep,
+    viewer: OptionalUser,
     level: Annotated[
         list[AlertLevel] | None,
         Query(description="Можно несколько: ?level=critical&level=warning"),
     ] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    include_unpublished: Annotated[
+        bool,
+        Query(
+            alias="includeUnpublished",
+            description="Модератору — вместе со снятыми с публикации",
+        ),
+    ] = False,
 ) -> list[AlertOut]:
-    alerts = await service.list_alerts(session, levels=level, limit=limit)
+    if include_unpublished and not (viewer and viewer.is_moderator):
+        raise ForbiddenError("Снятые оповещения видит только модератор")
+    alerts = await service.list_alerts(
+        session, levels=level, include_unpublished=include_unpublished, limit=limit
+    )
     return [AlertOut.model_validate(a) for a in alerts]
 
 
