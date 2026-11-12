@@ -321,6 +321,8 @@
 }
 
 .home-sos-visual {
+  /* Размер кнопки задаёт волны и кольцо удержания */
+  --sos-size: 134px;
   position: relative;
   width: 240px;
   height: 240px;
@@ -334,67 +336,240 @@
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
+  transition:
+    transform 600ms var(--ease-out),
+    background-color 600ms var(--ease-out);
 }
 
+/* Подложка медленно «дышит»: кнопка живая, но не кричит */
 .home-sos-ring--outer {
   width: 240px;
   height: 240px;
-  background-color: rgba(237, 5, 54, 0.08);
+  background: radial-gradient(circle, rgba(237, 5, 54, 0.02) 40%, rgba(237, 5, 54, 0.09) 100%);
+  animation: home-sos-breathe 4s var(--ease-in-out) infinite;
 }
 
 .home-sos-ring--middle {
   width: 187px;
   height: 187px;
-  background-color: rgba(237, 5, 54, 0.15);
+  background-color: rgba(237, 5, 54, 0.1);
+  animation: home-sos-breathe 4s var(--ease-in-out) -2s infinite;
+}
+
+@keyframes home-sos-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+/* Волны от кнопки к краю — как сигнал, который расходится */
+.home-sos-wave {
+  position: absolute;
+  width: var(--sos-size);
+  height: var(--sos-size);
+  border-radius: 50%;
+  border: 2px solid rgba(237, 5, 54, 0.35);
+  pointer-events: none;
+  animation: home-sos-wave 3.2s var(--ease-out) infinite;
+}
+
+.home-sos-wave--late {
+  animation-delay: 1.6s;
+}
+
+@keyframes home-sos-wave {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.78);
+    opacity: 0;
+  }
+}
+
+/* Кольцо удержания: пустое в покое, заполняется за 3 секунды */
+.home-sos-progress {
+  position: absolute;
+  width: calc(var(--sos-size) + 30px);
+  height: calc(var(--sos-size) + 30px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.home-sos-progress__track,
+.home-sos-progress__bar {
+  fill: none;
+  stroke-width: 4;
+}
+
+.home-sos-progress__track {
+  stroke: rgba(237, 5, 54, 0.14);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.home-sos-progress__bar {
+  stroke: var(--color-danger);
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
 }
 
 .home-sos-button {
   position: relative;
   z-index: 1;
-  width: 134px;
-  height: 134px;
+  width: var(--sos-size);
+  height: var(--sos-size);
+  padding: 0;
   border-radius: 50%;
   border: none;
-  background-color: var(--color-danger);
-  box-shadow: 0px 10px 24px rgba(237, 5, 54, 0.38);
+  background: radial-gradient(circle at 34% 28%, #ff5a75 0%, var(--color-danger) 46%, #b3002a 100%);
+  box-shadow:
+    0 12px 28px rgba(237, 5, 54, 0.4),
+    0 2px 6px rgba(150, 0, 30, 0.3),
+    inset 0 -8px 16px rgba(110, 0, 22, 0.35),
+    inset 0 3px 8px rgba(255, 255, 255, 0.28);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
   transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    background-color 0.2s ease;
+    transform 260ms var(--ease-out),
+    box-shadow 260ms var(--ease-out),
+    filter 260ms var(--ease-out);
+}
+
+/* Внутреннее кольцо — «ободок» кнопки */
+.home-sos-button::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+  transition:
+    inset 260ms var(--ease-out),
+    border-color 260ms var(--ease-out);
+}
+
+/* Блик сверху: объём без лишних эффектов */
+.home-sos-button__gloss {
+  position: absolute;
+  top: 7%;
+  left: 26%;
+  width: 48%;
+  height: 26%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 
 .home-sos-button:hover {
-  transform: scale(1.03);
+  transform: scale(1.04);
+  box-shadow:
+    0 18px 36px rgba(237, 5, 54, 0.46),
+    0 2px 6px rgba(150, 0, 30, 0.3),
+    inset 0 -8px 16px rgba(110, 0, 22, 0.35),
+    inset 0 3px 8px rgba(255, 255, 255, 0.28);
 }
 
-.home-sos-button--holding {
-  transform: scale(0.95);
-  box-shadow: 0px 4px 16px rgba(237, 5, 54, 0.6);
+.home-sos-button:hover::before {
+  inset: 7px;
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.home-sos-visual:hover .home-sos-wave {
+  animation-duration: 2.2s;
+}
+
+.home-sos-visual:hover .home-sos-ring--middle {
+  background-color: rgba(237, 5, 54, 0.14);
+}
+
+.home-sos-button:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 6px;
+}
+
+/* Удержание: кнопка «вдавлена», кольцо заполняется, волны чаще */
+.home-sos-button--holding,
+.home-sos-button--holding:hover {
+  transform: scale(0.93);
+  filter: saturate(1.15) brightness(0.95);
+  box-shadow:
+    0 4px 14px rgba(237, 5, 54, 0.5),
+    inset 0 8px 18px rgba(110, 0, 22, 0.45),
+    inset 0 -2px 6px rgba(255, 255, 255, 0.12);
+}
+
+.home-sos-visual--holding .home-sos-progress__track,
+.home-sos-visual--holding .home-sos-progress__bar {
+  opacity: 1;
+}
+
+.home-sos-visual--holding .home-sos-wave {
+  animation-duration: 1.1s;
+  border-color: rgba(237, 5, 54, 0.55);
+}
+
+.home-sos-visual--holding .home-sos-ring--outer {
+  transform: scale(1.06);
+}
+
+.home-sos-visual--holding .home-sos-ring--middle {
+  background-color: rgba(237, 5, 54, 0.18);
 }
 
 .home-sos-button--sent {
-  background-color: #008f82;
+  background: #008f82;
   box-shadow: 0px 10px 24px rgba(0, 143, 130, 0.35);
 }
 
 .home-sos-button__title {
+  position: relative;
   font-size: 38px;
   font-weight: 800;
   line-height: 46px;
+  letter-spacing: 0.02em;
   color: var(--color-white);
+  text-shadow: 0 2px 6px rgba(110, 0, 22, 0.35);
 }
 
 .home-sos-button__hint {
+  position: relative;
   font-size: 12px;
   font-weight: 600;
   line-height: 17px;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-sos-ring--outer,
+  .home-sos-ring--middle,
+  .home-sos-wave {
+    animation: none;
+  }
+
+  .home-sos-wave {
+    display: none;
+  }
+
+  .home-sos-button:hover,
+  .home-sos-visual--holding .home-sos-ring--outer {
+    transform: none;
+  }
 }
 
 .home-sos-mobile-copy {
@@ -418,6 +593,11 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 17px;
+}
+
+.home-sos-badge--warn {
+  background-color: #fff1e6;
+  color: #c2410c;
 }
 
 .home-sos-details__title {
@@ -451,6 +631,10 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.home-sos-check__icon--warn {
+  background-color: #fff1e6;
 }
 
 .home-sos-check__text {
@@ -784,8 +968,18 @@
   }
 
   .home-sos-visual {
+    --sos-size: 94px;
     width: 168px;
     height: 168px;
+  }
+
+  .home-sos-progress {
+    width: calc(var(--sos-size) + 22px);
+    height: calc(var(--sos-size) + 22px);
+  }
+
+  .home-sos-button::before {
+    inset: 6px;
   }
 
   .home-sos-ring--outer {
@@ -796,11 +990,6 @@
   .home-sos-ring--middle {
     width: 131px;
     height: 131px;
-  }
-
-  .home-sos-button {
-    width: 94px;
-    height: 94px;
   }
 
   .home-sos-button__title {

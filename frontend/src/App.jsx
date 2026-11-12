@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { Siren, X } from 'lucide-react';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
 import SosSentPage from './pages/SosSentPage';
@@ -27,6 +28,10 @@ import {
   logout,
 } from './services/api';
 import { GUEST_USER } from './services/adapters';
+import { ShellContext } from './components/shellContext';
+import IncomingSosBanner from './components/IncomingSosBanner';
+import ConfirmProvider from './components/ConfirmProvider';
+import Modal from './components/Modal';
 import {
   INITIAL_USER,
   EMERGENCY_SERVICES,
@@ -78,6 +83,8 @@ const EMPTY_DASHBOARD = {
   operatorSos: [],
   operatorStats: null,
   operatorAlerts: [],
+  incomingSos: [],
+  mapCenter: null,
   operatorProfile: { initials: 'М', name: 'Модератор', role: 'Модератор', dateSubtitle: '' },
 };
 
@@ -98,12 +105,17 @@ const MOCK_DASHBOARD = {
   operatorSos: [],
   operatorStats: null,
   operatorAlerts: RECENT_ALERTS,
+  incomingSos: [],
+  mapCenter: null,
   operatorProfile: OPERATOR_PROFILE,
 };
 
 function App() {
-  // 'register' | 'home' | 'sos' | 'contacts' | 'guides' | 'alerts' | 'map' | 'report' | 'operator'
+  // 'register' | 'home' | 'sos' | 'contacts' | 'guides' | 'alerts' | 'map' | 'report'
+  // | 'operator' | 'operator-sos'
   const [currentPage, setCurrentPage] = useState('register');
+  // Что показать на карте: {type: 'sos' | 'incoming-sos' | 'incident', id, lat, lng, title, subtitle}
+  const [mapFocus, setMapFocus] = useState(null);
   const [sosSession, setSosSession] = useState(null);
   const [dashboard, setDashboard] = useState(USE_MOCK ? MOCK_DASHBOARD : EMPTY_DASHBOARD);
   const [dataLoaded, setDataLoaded] = useState(USE_MOCK);
@@ -119,6 +131,12 @@ function App() {
   const epochRef = useRef(0);
   useEffect(() => {
     pageRef.current = currentPage;
+  }, [currentPage]);
+
+  // Новый раздел открывается с начала, а не на месте прокрутки предыдущего.
+  // useLayoutEffect — раньше эффектов страниц: панель модератора сама прокрутит к SOS.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
   }, [currentPage]);
   useEffect(() => {
     sosRef.current = sosSession;
@@ -177,7 +195,11 @@ function App() {
         );
       }
 
-      if (!USE_MOCK && pageRef.current === 'operator' && !data.user?.isModerator) {
+      if (
+        !USE_MOCK &&
+        ['operator', 'operator-sos'].includes(pageRef.current) &&
+        !data.user?.isModerator
+      ) {
         setCurrentPage('home');
       }
       return data;
@@ -248,6 +270,7 @@ function App() {
       operatorSos: [],
       operatorStats: null,
       operatorAlerts: [],
+      incomingSos: [],
     }));
     setCurrentPage('register');
     if (!USE_MOCK) loadDashboard({ silent: true }).catch((error) => console.error(error));
@@ -258,7 +281,7 @@ function App() {
       setCurrentPage('sos');
       return;
     }
-    if (page === 'operator' && !canModerate) {
+    if ((page === 'operator' || page === 'operator-sos') && !canModerate) {
       notify('Панель модератора доступна только модераторам', 'error');
       return;
     }
@@ -267,7 +290,18 @@ function App() {
       notify(LOGIN_REQUIRED[page], 'error');
       return;
     }
+    if (page !== 'map') setMapFocus(null);
     setCurrentPage(page);
+  };
+
+  // Открыть карту с выбранной точкой (SOS близкого, SOS для модератора, метка)
+  const handleShowOnMap = (focus) => {
+    if (typeof focus?.lat !== 'number' || typeof focus?.lng !== 'number') {
+      notify('У этого сигнала нет координат — только адрес', 'error');
+      return;
+    }
+    setMapFocus(focus);
+    setCurrentPage('map');
   };
 
   // ---------- SOS ----------
@@ -468,159 +502,198 @@ function App() {
 
   const sosRecipients = dashboard.contacts.filter((c) => c.receivesSos);
 
+  const moderationCounts = useMemo(
+    () => ({
+      newIncidents: dashboard.operatorStats
+        ? dashboard.operatorStats.newIncidents
+        : dashboard.operatorIncidents.filter((i) => i.status === 'new').length,
+      activeSos: dashboard.operatorStats
+        ? dashboard.operatorStats.activeSos
+        : dashboard.operatorSos.length,
+    }),
+    [dashboard.operatorStats, dashboard.operatorIncidents, dashboard.operatorSos]
+  );
+
+  const shell = {
+    user: dashboard.user,
+    isAuthenticated: isAuthenticated && !(USE_MOCK && !dashboard.isAuthenticated),
+    canModerate,
+    currentPage: currentPage === 'sos' ? 'home' : currentPage,
+    moderation: moderationCounts,
+    onNavigate: handleNavigate,
+    onTriggerSos: handleRequestSos,
+    onLogout: handleLogout,
+    onNotify: notify,
+  };
+
   return (
-    <div className="app-root">
-      {connectionError && (
-        <div className="app-banner app-banner--error" role="alert">
-          <span>Нет связи с сервером: данные не загружены. {connectionError}</span>
-          <button
-            type="button"
-            onClick={() =>
-              loadDashboard().catch((error) => setConnectionError(error?.message || 'Ошибка'))
-            }
-          >
-            Повторить
-          </button>
-        </div>
-      )}
+    <ShellContext.Provider value={shell}>
+      <ConfirmProvider>
+        <div className="app-root">
+          {connectionError && (
+            <div className="app-banner app-banner--error" role="alert">
+              <span>Нет связи с сервером: данные не загружены. {connectionError}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  loadDashboard().catch((error) => setConnectionError(error?.message || 'Ошибка'))
+                }
+              >
+                Повторить
+              </button>
+            </div>
+          )}
 
-      {notice && (
-        <div
-          key={notice.id}
-          className={`app-toast app-toast--${notice.type}`}
-          role={notice.type === 'error' ? 'alert' : 'status'}
-        >
-          <span>{notice.text}</span>
-          <button type="button" aria-label="Закрыть сообщение" onClick={() => setNotice(null)}>
-            ×
-          </button>
-        </div>
-      )}
+          {notice && (
+            <div
+              key={notice.id}
+              className={`app-toast app-toast--${notice.type}`}
+              role={notice.type === 'error' ? 'alert' : 'status'}
+            >
+              <span>{notice.text}</span>
+              <button type="button" aria-label="Закрыть сообщение" onClick={() => setNotice(null)}>
+                <X size={18} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </div>
+          )}
 
-      {currentPage === 'register' && (
-        <RegisterPage
-          initialUser={dashboard.user}
-          isAuthenticated={isAuthenticated && !USE_MOCK}
-          canBrowse={dataLoaded}
-          onSuccess={handleRegistrationSuccess}
-          onGoToLogin={() => setCurrentPage('home')}
-          onGoHome={() => setCurrentPage('home')}
-          onLogout={handleLogout}
-        />
-      )}
+          {currentPage !== 'register' && dashboard.incomingSos.length > 0 && (
+            <IncomingSosBanner signals={dashboard.incomingSos} onShowOnMap={handleShowOnMap} />
+          )}
 
-      {currentPage === 'home' && (
-        <HomePage
-          user={dashboard.user}
-          services={dashboard.services}
-          alerts={dashboard.alerts}
-          contacts={dashboard.contacts}
-          canModerate={canModerate}
-          onNavigate={handleNavigate}
-          onTriggerSos={handleRequestSos}
-          onConfirmSos={handleTriggerSos}
-        />
-      )}
+          {currentPage === 'register' && (
+            <RegisterPage
+              initialUser={dashboard.user}
+              isAuthenticated={isAuthenticated && !USE_MOCK}
+              canBrowse={dataLoaded}
+              onSuccess={handleRegistrationSuccess}
+              onGoToLogin={() => setCurrentPage('home')}
+              onGoHome={() => setCurrentPage('home')}
+              onLogout={handleLogout}
+            />
+          )}
 
-      {currentPage === 'sos' && (
-        <SosSentPage
-          user={dashboard.user}
-          canModerate={canModerate}
-          sosWaitingTips={dashboard.sosWaitingTips}
-          sosSession={sosSession}
-          onCancelSos={handleCancelSos}
-          onNavigate={handleNavigate}
-        />
-      )}
+          {currentPage === 'home' && (
+            <HomePage
+              user={dashboard.user}
+              services={dashboard.services}
+              alerts={dashboard.alerts}
+              contacts={dashboard.contacts}
+              canModerate={canModerate}
+              onNavigate={handleNavigate}
+              onTriggerSos={handleRequestSos}
+              onConfirmSos={handleTriggerSos}
+            />
+          )}
 
-      {currentPage === 'contacts' && (
-        <ContactsPage
-          user={dashboard.user}
-          contacts={dashboard.contacts}
-          maxContacts={dashboard.maxContacts}
-          canModerate={canModerate}
-          onNavigate={handleNavigate}
-          onTriggerSos={handleRequestSos}
-          onToggleContactSos={handleToggleContactSos}
-          onAddContact={handleAddContact}
-          onDeleteContact={handleDeleteContact}
-        />
-      )}
+          {currentPage === 'sos' && (
+            <SosSentPage
+              user={dashboard.user}
+              canModerate={canModerate}
+              sosWaitingTips={dashboard.sosWaitingTips}
+              sosSession={sosSession}
+              onCancelSos={handleCancelSos}
+              onNavigate={handleNavigate}
+            />
+          )}
 
-      {currentPage === 'guides' && (
-        <GuidesPage
-          user={dashboard.user}
-          services={dashboard.services}
-          guides={dashboard.guides}
-          canModerate={canModerate}
-          onNavigate={handleNavigate}
-          onTriggerSos={handleRequestSos}
-        />
-      )}
+          {currentPage === 'contacts' && (
+            <ContactsPage
+              user={dashboard.user}
+              contacts={dashboard.contacts}
+              maxContacts={dashboard.maxContacts}
+              canModerate={canModerate}
+              onNavigate={handleNavigate}
+              onTriggerSos={handleRequestSos}
+              onToggleContactSos={handleToggleContactSos}
+              onAddContact={handleAddContact}
+              onDeleteContact={handleDeleteContact}
+            />
+          )}
 
-      {currentPage === 'alerts' && (
-        <AlertsPage
-          user={dashboard.user}
-          alerts={dashboard.alerts}
-          canModerate={canModerate}
-          onNavigate={handleNavigate}
-          onTriggerSos={handleRequestSos}
-          onTogglePushNotifications={handleTogglePushNotifications}
-        />
-      )}
+          {currentPage === 'guides' && (
+            <GuidesPage
+              user={dashboard.user}
+              services={dashboard.services}
+              guides={dashboard.guides}
+              canModerate={canModerate}
+              onNavigate={handleNavigate}
+              onTriggerSos={handleRequestSos}
+            />
+          )}
 
-      {currentPage === 'map' && (
-        <MapPage
-          user={dashboard.user}
-          categories={dashboard.mapCategories}
-          places={dashboard.mapPlaces}
-          canModerate={canModerate}
-          onNavigate={handleNavigate}
-          onTriggerSos={handleRequestSos}
-        />
-      )}
+          {currentPage === 'alerts' && (
+            <AlertsPage
+              user={dashboard.user}
+              alerts={dashboard.alerts}
+              mapCenter={dashboard.mapCenter}
+              canModerate={canModerate}
+              onNavigate={handleNavigate}
+              onTriggerSos={handleRequestSos}
+              onTogglePushNotifications={handleTogglePushNotifications}
+            />
+          )}
 
-      {currentPage === 'report' && (
-        <ReportPage
-          user={dashboard.user}
-          incidentTypes={dashboard.incidentTypes}
-          reportNextSteps={dashboard.reportNextSteps}
-          canModerate={canModerate}
-          onSubmitReport={handleSubmitReport}
-          onUploadPhotos={handleUploadPhotos}
-          onNavigate={handleNavigate}
-          onTriggerSos={handleRequestSos}
-        />
-      )}
+          {currentPage === 'map' && (
+            <MapPage
+              user={dashboard.user}
+              categories={dashboard.mapCategories}
+              places={dashboard.mapPlaces}
+              center={dashboard.mapCenter}
+              focus={mapFocus}
+              sosPoints={[
+                ...dashboard.incomingSos.map((s) => ({ ...s, kind: 'incoming' })),
+                ...(canModerate
+                  ? dashboard.operatorSos.map((s) => ({ ...s, kind: 'moderation' }))
+                  : []),
+              ]}
+              onClearFocus={() => setMapFocus(null)}
+              onNavigate={handleNavigate}
+            />
+          )}
 
-      {currentPage === 'operator' && canModerate && (
-        <OperatorPanelPage
-          user={dashboard.user}
-          operatorProfile={dashboard.operatorProfile}
-          incidents={dashboard.operatorIncidents}
-          sosSignals={dashboard.operatorSos}
-          stats={dashboard.operatorStats}
-          alerts={dashboard.operatorAlerts}
-          onUpdateIncidentStatus={handleUpdateIncidentStatus}
-          onResolveSos={handleResolveSos}
-          onCreateAlert={handleCreateCityAlert}
-          onUpdateAlert={handleUpdateCityAlert}
-          onNavigate={handleNavigate}
-        />
-      )}
+          {currentPage === 'report' && (
+            <ReportPage
+              user={dashboard.user}
+              incidentTypes={dashboard.incidentTypes}
+              reportNextSteps={dashboard.reportNextSteps}
+              canModerate={canModerate}
+              onSubmitReport={handleSubmitReport}
+              onUploadPhotos={handleUploadPhotos}
+              onNavigate={handleNavigate}
+              onTriggerSos={handleRequestSos}
+            />
+          )}
 
-      {sosConfirmOpen && (
-        <div
-          className="app-modal"
-          role="presentation"
-          onKeyDown={(e) => e.key === 'Escape' && setSosConfirmOpen(false)}
-        >
-          <div
-            className="app-modal__card"
+          {(currentPage === 'operator' || currentPage === 'operator-sos') && canModerate && (
+            <OperatorPanelPage
+              user={dashboard.user}
+              operatorProfile={dashboard.operatorProfile}
+              incidents={dashboard.operatorIncidents}
+              sosSignals={dashboard.operatorSos}
+              stats={dashboard.operatorStats}
+              alerts={dashboard.operatorAlerts}
+              onUpdateIncidentStatus={handleUpdateIncidentStatus}
+              onResolveSos={handleResolveSos}
+              onCreateAlert={handleCreateCityAlert}
+              onUpdateAlert={handleUpdateCityAlert}
+              onShowOnMap={handleShowOnMap}
+              focusSection={currentPage === 'operator-sos' ? 'sos' : 'incidents'}
+              mapCenter={dashboard.mapCenter}
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          <Modal
+            open={sosConfirmOpen}
+            onClose={() => setSosConfirmOpen(false)}
             role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="sos-confirm-title"
+            labelledBy="sos-confirm-title"
+            className="app-modal__card"
           >
+            <div className="app-modal__icon" aria-hidden="true">
+              <Siren size={26} strokeWidth={2.2} />
+            </div>
             <h2 id="sos-confirm-title" className="app-modal__title">
               Отправить сигнал SOS?
             </h2>
@@ -645,7 +718,7 @@ function App() {
               <button
                 type="button"
                 className="app-modal__btn app-modal__btn--danger"
-                autoFocus
+                data-autofocus
                 onClick={handleTriggerSos}
               >
                 Отправить SOS
@@ -667,16 +740,16 @@ function App() {
               </a>
               <button
                 type="button"
-                className="app-modal__btn"
+                className="app-modal__btn app-modal__btn--ghost"
                 onClick={() => setSosConfirmOpen(false)}
               >
                 Отмена
               </button>
             </div>
-          </div>
+          </Modal>
         </div>
-      )}
-    </div>
+      </ConfirmProvider>
+    </ShellContext.Provider>
   );
 }
 

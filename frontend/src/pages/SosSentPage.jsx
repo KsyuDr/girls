@@ -1,21 +1,6 @@
 import { useState, useEffect } from 'react';
-import {
-  ShieldCheck,
-  Home,
-  Bell,
-  Map,
-  TriangleAlert,
-  Users,
-  BookOpen,
-  Siren,
-  Search,
-  Phone,
-  Plus,
-  Shield,
-  MapPin,
-  Check,
-  LayoutDashboard,
-} from 'lucide-react';
+import { Bell, Siren, Search, Phone, Plus, Shield, MapPin, Check } from 'lucide-react';
+import { AppSidebar, AccountMenu } from '../components/AppShell';
 import './SosSentPage.css';
 
 const DELIVERY_BADGES = {
@@ -26,7 +11,6 @@ const DELIVERY_BADGES = {
 
 export default function SosSentPage({
   user,
-  canModerate = false,
   sosWaitingTips = [],
   sosSession,
   onCancelSos,
@@ -92,95 +76,12 @@ export default function SosSentPage({
     }
   };
 
-  const navItems = [
-    { id: 'home', label: 'Главная', icon: Home },
-    { id: 'alerts', label: 'Оповещения', icon: Bell },
-    { id: 'map', label: 'Карта', icon: Map },
-    { id: 'report', label: 'Сообщить', icon: TriangleAlert },
-    { id: 'contacts', label: 'Контакты', icon: Users },
-    { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
-  ];
-
-  const handleNavClick = (navId) => {
-    onNavigate?.(navId);
-  };
-
   return (
     <div className="sos-page" data-node-id="3149:531">
-      {/* Боковое меню (Десктоп MacBook Pro 14") */}
-      <aside className="sos-sidebar" data-node-id="3149:603">
-        <div className="sos-sidebar__top" data-node-id="3149:583">
-          <div className="sos-sidebar__logo" data-node-id="3149:541">
-            <div className="sos-sidebar__logo-icon" data-node-id="3149:537">
-              <ShieldCheck size={22} color="#003C54" strokeWidth={2.2} aria-hidden="true" />
-            </div>
-            <div className="sos-sidebar__logo-text" data-node-id="3149:540">
-              <span className="sos-sidebar__brand" data-node-id="3149:538">
-                Безопасный город
-              </span>
-              <span className="sos-sidebar__city" data-node-id="3149:539">
-                {user.city}
-              </span>
-            </div>
-          </div>
-
-          <nav className="sos-sidebar__nav" aria-label="Основная навигация" data-node-id="3149:582">
-            {navItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = item.id === 'home';
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleNavClick(item.id)}
-                  className={`sos-sidebar__nav-item ${
-                    isActive ? 'sos-sidebar__nav-item--active' : ''
-                  }`}
-                >
-                  <IconComponent
-                    size={20}
-                    color={isActive ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="sos-sidebar__bottom" data-node-id="3149:602">
-          {/* SOS уже активен — здесь полезнее позвонить в 112 */}
-          <a href="tel:112" className="sos-sidebar__sos-btn" data-node-id="3149:601">
-            <Phone size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-            <span>Позвонить 112</span>
-          </a>
-
-          <button
-            type="button"
-            onClick={() => onNavigate?.('register')}
-            className="sos-sidebar__profile"
-            data-node-id="3149:589"
-          >
-            <div className="sos-sidebar__avatar" data-node-id="3149:585">
-              <span>{user.initials}</span>
-            </div>
-            <div className="sos-sidebar__profile-info" data-node-id="3149:588">
-              <span className="sos-sidebar__profile-name" data-node-id="3149:586">
-                {user.mobileName}
-              </span>
-              <span className="sos-sidebar__profile-phone" data-node-id="3149:587">
-                {user.displayPhone}
-              </span>
-            </div>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Основная область (Десктоп + Мобильная версия) */}
-      <main className="sos-main" data-node-id="3149:532">
+      <main className="sos-main page-enter" data-node-id="3149:532">
         {/* Верхняя шапка (Десктоп) */}
         <header className="sos-topbar" data-node-id="3149:528">
           <div className="sos-topbar__title-group" data-node-id="3149:512">
@@ -217,15 +118,7 @@ export default function SosSentPage({
               <span className="sos-topbar__bell-dot" data-node-id="3149:524" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => onNavigate?.('register')}
-              className="sos-topbar__avatar"
-              title="Профиль"
-              data-node-id="3149:526"
-            >
-              <span>{user.initials}</span>
-            </button>
+            <AccountMenu className="sos-topbar__avatar" />
           </div>
         </header>
 

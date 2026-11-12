@@ -1,22 +1,10 @@
-import { useState } from 'react';
-import {
-  ShieldCheck,
-  Home,
-  Bell,
-  Map,
-  TriangleAlert,
-  Users,
-  BookOpen,
-  Siren,
-  Search,
-  MapPin,
-  Shield,
-  Check,
-  Send,
-  Filter,
-  LayoutDashboard,
-} from 'lucide-react';
+import { useState, lazy, Suspense } from 'react';
+import { Bell, Map, Search, MapPin, Shield, Check, Send, Filter, Maximize2 } from 'lucide-react';
+import { AppSidebar, AccountMenu, MobileTabbar } from '../components/AppShell';
 import './AlertsPage.css';
+
+// Та же карта, что в разделе «Карта» (Leaflet), — отдельным чанком
+const CityMap = lazy(() => import('../components/CityMap'));
 
 const FILTER_CHIPS = [
   { id: 'all', label: 'Все', dotColor: null },
@@ -28,9 +16,8 @@ const FILTER_CHIPS = [
 export default function AlertsPage({
   user,
   alerts = [],
-  canModerate = false,
+  mapCenter = null,
   onNavigate,
-  onTriggerSos,
   onTogglePushNotifications,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,6 +27,8 @@ export default function AlertsPage({
   const [sharedFeedback, setSharedFeedback] = useState(false);
 
   const pushEnabled = user?.pushNotificationsEnabled ?? true;
+  const userPoint =
+    user?.hasLocation && typeof user.lat === 'number' ? { lat: user.lat, lng: user.lng } : null;
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const filteredAlerts = alerts.filter((alert) => {
@@ -70,103 +59,12 @@ export default function AlertsPage({
     setTimeout(() => setSharedFeedback(false), 2000);
   };
 
-  const navItems = [
-    { id: 'home', label: 'Главная', icon: Home },
-    { id: 'alerts', label: 'Оповещения', icon: Bell },
-    { id: 'map', label: 'Карта', icon: Map },
-    { id: 'report', label: 'Сообщить', icon: TriangleAlert },
-    { id: 'contacts', label: 'Контакты', icon: Users },
-    { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
-  ];
-
-  const handleNavClick = (id) => {
-    onNavigate?.(id);
-  };
-
   return (
     <div className="alerts-layout" data-node-id="3149:1306">
-      {/* Боковое меню (Десктоп MacBook Pro 14") */}
-      <aside className="sos-sidebar" data-node-id="3149:1378">
-        <div className="sos-sidebar__top" data-node-id="3149:1358">
-          <div className="sos-sidebar__logo" data-node-id="3149:1316">
-            <div className="sos-sidebar__logo-icon" data-node-id="3149:1312">
-              <ShieldCheck size={22} color="#003C54" strokeWidth={2.2} aria-hidden="true" />
-            </div>
-            <div className="sos-sidebar__logo-text" data-node-id="3149:1315">
-              <span className="sos-sidebar__brand" data-node-id="3149:1313">
-                Безопасный город
-              </span>
-              <span className="sos-sidebar__city" data-node-id="3149:1314">
-                {user?.city || 'Москва'}
-              </span>
-            </div>
-          </div>
-
-          <nav
-            className="sos-sidebar__nav"
-            aria-label="Основная навигация"
-            data-node-id="3149:1357"
-          >
-            {navItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = item.id === 'alerts';
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleNavClick(item.id)}
-                  className={`sos-sidebar__nav-item ${
-                    isActive ? 'sos-sidebar__nav-item--active' : ''
-                  }`}
-                >
-                  <IconComponent
-                    size={20}
-                    color={isActive ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="sos-sidebar__bottom" data-node-id="3149:1377">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="sos-sidebar__sos-btn"
-            data-node-id="3149:1376"
-          >
-            <Siren size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-            <span>Экстренный вызов SOS</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate?.('register')}
-            className="sos-sidebar__profile"
-            data-node-id="3149:1364"
-          >
-            <div className="sos-sidebar__avatar" data-node-id="3149:1360">
-              <span>{user?.initials || 'ПА'}</span>
-            </div>
-            <div className="sos-sidebar__profile-info" data-node-id="3149:1363">
-              <span className="sos-sidebar__profile-name" data-node-id="3149:1361">
-                {user?.mobileName || 'Полина Исупова'}
-              </span>
-              <span className="sos-sidebar__profile-phone" data-node-id="3149:1362">
-                {user?.displayPhone || '+7 912 345-67-89'}
-              </span>
-            </div>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* ОСНОВНОЙ КОНТЕНТ */}
-      <div className="alerts-main" data-node-id="3149:1307">
+      <div className="alerts-main page-enter" data-node-id="3149:1307">
         {/* ШАПКА ДЕСКТОПА */}
         <header className="alerts-topbar" data-node-id="3149:1304">
           <div className="alerts-topbar__titles" data-node-id="3149:1288">
@@ -203,15 +101,7 @@ export default function AlertsPage({
               <span className="alerts-topbar__bell-dot" aria-hidden="true" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => onNavigate?.('register')}
-              className="alerts-topbar__avatar"
-              title="Профиль пользователя"
-              data-node-id="3149:1302"
-            >
-              {user?.initials || 'ПА'}
-            </button>
+            <AccountMenu className="alerts-topbar__avatar" />
           </div>
         </header>
 
@@ -327,9 +217,20 @@ export default function AlertsPage({
               return (
                 <article
                   key={alert.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
                   onClick={() => {
                     setSelectedAlertId(alert.id);
                     setExpandedMobileAlertId((prev) => (prev === alert.id ? null : alert.id));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedAlertId(alert.id);
+                      setExpandedMobileAlertId((prev) => (prev === alert.id ? null : alert.id));
+                    }
                   }}
                   style={{ borderLeftColor: alert.borderColor || alert.accentColor }}
                   className={`alerts-card ${isSelected ? 'alerts-card--selected' : ''}`}
@@ -395,7 +296,11 @@ export default function AlertsPage({
                 </span>
               </div>
 
-              <h2 className="alerts-detail-card__title" data-node-id="3149:1212">
+              <h2
+                key={`title-${selectedAlert.id}`}
+                className="alerts-detail-card__title alerts-swap"
+                data-node-id="3149:1212"
+              >
                 {selectedAlert.title}
               </h2>
 
@@ -410,42 +315,40 @@ export default function AlertsPage({
                 </div>
               </div>
 
-              <p className="alerts-detail-card__desc" data-node-id="3149:1225">
+              <p
+                key={`desc-${selectedAlert.id}`}
+                className="alerts-detail-card__desc alerts-swap"
+                data-node-id="3149:1225"
+              >
                 {selectedAlert.description || selectedAlert.subtitle}
               </p>
 
-              {/* Мини-карта зоны оповещения */}
+              {/* Мини-карта: у оповещения нет координат, только район — показываем город и вас */}
               <div className="alerts-detail-map" data-node-id="3149:1226">
-                <div className="alerts-detail-map__grid" aria-hidden="true">
-                  {Array.from({ length: 18 }).map((_, i) => (
-                    <div key={i} className="alerts-detail-map__block" />
-                  ))}
-                </div>
-                <div className="alerts-detail-map__river" aria-hidden="true" />
-                <div
-                  className="alerts-detail-map__road alerts-detail-map__road--h"
-                  aria-hidden="true"
-                />
-                <div
-                  className="alerts-detail-map__road alerts-detail-map__road--v"
-                  aria-hidden="true"
-                />
-
-                {/* Опасная зона */}
-                <div
-                  className="alerts-detail-map__danger-zone"
-                  data-node-id="3149:1248"
-                  aria-label="Зона действия оповещения"
-                />
-
-                {/* Моё местоположение */}
-                <div
-                  className="alerts-detail-map__user-pin"
-                  data-node-id="3149:1249"
-                  title={`Ваше местоположение: ${user?.address || 'местоположение неизвестно'}`}
+                <Suspense fallback={<span className="alerts-detail-map__loading" />}>
+                  <CityMap
+                    center={userPoint || mapCenter}
+                    userPoint={userPoint}
+                    zoom={userPoint ? 13 : 11}
+                    interactive={false}
+                    ariaLabel="Карта города"
+                    className="alerts-detail-map__map"
+                  />
+                </Suspense>
+                <button
+                  type="button"
+                  className="alerts-detail-map__hit"
+                  onClick={() => onNavigate?.('map')}
+                  aria-label={`Открыть карту. Район оповещения: ${selectedAlert.locationLabel}`}
                 >
-                  <div className="alerts-detail-map__user-dot" />
-                </div>
+                  <span className="alerts-detail-map__zone">
+                    <MapPin size={14} strokeWidth={2.4} aria-hidden="true" />
+                    {selectedAlert.locationLabel}
+                  </span>
+                  <span className="alerts-detail-map__open" aria-hidden="true">
+                    <Maximize2 size={16} strokeWidth={2.2} />
+                  </span>
+                </button>
               </div>
 
               {/* Чек-лист «Что делать» */}
@@ -493,43 +396,7 @@ export default function AlertsPage({
         </div>
       </div>
 
-      {/* Нижняя панель навигации (Мобильная версия iPhone 16) */}
-      <nav className="home-tabbar" aria-label="Мобильная навигация" data-node-id="3149:3026">
-        <button type="button" onClick={() => onNavigate?.('home')} className="home-tabbar__item">
-          <Home size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Главная</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('map')} className="home-tabbar__item">
-          <Map size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Карта</span>
-        </button>
-
-        <div className="home-tabbar__sos-slot">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="home-tabbar__sos-btn"
-            data-node-id="3149:3053"
-          >
-            <span>SOS</span>
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onNavigate?.('alerts')}
-          className="home-tabbar__item home-tabbar__item--active"
-        >
-          <Bell size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Лента</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('guides')} className="home-tabbar__item">
-          <BookOpen size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Помощь</span>
-        </button>
-      </nav>
+      <MobileTabbar />
     </div>
   );
 }

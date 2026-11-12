@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import {
-  ShieldCheck,
-  Home,
   Bell,
-  Map,
   TriangleAlert,
-  Users,
-  BookOpen,
   Siren,
   Search,
   Phone,
@@ -20,8 +15,8 @@ import {
   ChevronLeft,
   Bookmark,
   X,
-  LayoutDashboard,
 } from 'lucide-react';
+import { AppSidebar, AccountMenu, MobileTabbar } from '../components/AppShell';
 import './GuidesPage.css';
 
 const ICON_MAP = {
@@ -36,13 +31,10 @@ const ICON_MAP = {
 };
 
 export default function GuidesPage({
-  user,
   services = [],
   guides = [],
   initialMobileDetailOpen = false,
-  canModerate = false,
   onNavigate,
-  onTriggerSos,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGuideId, setSelectedGuideId] = useState(guides[0]?.id || 'fire');
@@ -88,20 +80,6 @@ export default function GuidesPage({
     }
   };
 
-  const navItems = [
-    { id: 'home', label: 'Главная', icon: Home },
-    { id: 'alerts', label: 'Оповещения', icon: Bell },
-    { id: 'map', label: 'Карта', icon: Map },
-    { id: 'report', label: 'Сообщить', icon: TriangleAlert },
-    { id: 'contacts', label: 'Контакты', icon: Users },
-    { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
-  ];
-
-  const handleNavClick = (id) => {
-    onNavigate?.(id);
-  };
-
   const SelectedGuideIcon = ICON_MAP[selectedGuide?.icon] || Flame;
 
   // На мобильном по умолчанию в макете 05 показаны первые 4 службы (112, 101, 102, 103), при поиске — все совпавшие
@@ -114,87 +92,10 @@ export default function GuidesPage({
 
   return (
     <div className="guides-layout" data-node-id="3149:1061">
-      {/* Боковое меню (Десктоп MacBook Pro 14") */}
-      <aside className="sos-sidebar" data-node-id="3149:1133">
-        <div className="sos-sidebar__top" data-node-id="3149:1113">
-          <div className="sos-sidebar__logo" data-node-id="3149:1071">
-            <div className="sos-sidebar__logo-icon" data-node-id="3149:1067">
-              <ShieldCheck size={22} color="#003C54" strokeWidth={2.2} aria-hidden="true" />
-            </div>
-            <div className="sos-sidebar__logo-text" data-node-id="3149:1070">
-              <span className="sos-sidebar__brand" data-node-id="3149:1068">
-                Безопасный город
-              </span>
-              <span className="sos-sidebar__city" data-node-id="3149:1069">
-                {user?.city || 'Москва'}
-              </span>
-            </div>
-          </div>
-
-          <nav
-            className="sos-sidebar__nav"
-            aria-label="Основная навигация"
-            data-node-id="3149:1112"
-          >
-            {navItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = item.id === 'guides';
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleNavClick(item.id)}
-                  className={`sos-sidebar__nav-item ${
-                    isActive ? 'sos-sidebar__nav-item--active' : ''
-                  }`}
-                >
-                  <IconComponent
-                    size={20}
-                    color={isActive ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="sos-sidebar__bottom" data-node-id="3149:1132">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="sos-sidebar__sos-btn"
-            data-node-id="3149:1131"
-          >
-            <Siren size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-            <span>Экстренный вызов SOS</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate?.('register')}
-            className="sos-sidebar__profile"
-            data-node-id="3149:1119"
-          >
-            <div className="sos-sidebar__avatar" data-node-id="3149:1115">
-              <span>{user?.initials || 'ПА'}</span>
-            </div>
-            <div className="sos-sidebar__profile-info" data-node-id="3149:1118">
-              <span className="sos-sidebar__profile-name" data-node-id="3149:1116">
-                {user?.mobileName || 'Полина Исупова'}
-              </span>
-              <span className="sos-sidebar__profile-phone" data-node-id="3149:1117">
-                {user?.displayPhone || '+7 912 345-67-89'}
-              </span>
-            </div>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* ОСНОВНОЙ КОНТЕНТ */}
-      <div className="guides-main" data-node-id="3149:1062">
+      <div className="guides-main page-enter" data-node-id="3149:1062">
         {/* ШАПКА ДЕСКТОПА */}
         <header className="guides-topbar" data-node-id="3149:1059">
           <div className="guides-topbar__titles" data-node-id="3149:1043">
@@ -230,15 +131,7 @@ export default function GuidesPage({
               <span className="guides-topbar__bell-dot" aria-hidden="true" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => onNavigate?.('register')}
-              className="guides-topbar__avatar"
-              title="Профиль пользователя"
-              data-node-id="3149:1057"
-            >
-              {user?.initials || 'ПА'}
-            </button>
+            <AccountMenu className="guides-topbar__avatar" />
           </div>
         </header>
 
@@ -640,46 +533,7 @@ export default function GuidesPage({
         )}
       </div>
 
-      {/* Нижняя панель навигации (Мобильная версия iPhone 16) */}
-      <nav className="home-tabbar" aria-label="Мобильная навигация" data-node-id="3149:2799">
-        <button type="button" onClick={() => onNavigate?.('home')} className="home-tabbar__item">
-          <Home size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Главная</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('map')} className="home-tabbar__item">
-          <Map size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Карта</span>
-        </button>
-
-        <div className="home-tabbar__sos-slot">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="home-tabbar__sos-btn"
-            data-node-id="3149:2826"
-          >
-            <span>SOS</span>
-          </button>
-        </div>
-
-        <button type="button" onClick={() => onNavigate?.('alerts')} className="home-tabbar__item">
-          <Bell size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Лента</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setMobileDetailOpen(false);
-            onNavigate?.('guides');
-          }}
-          className="home-tabbar__item home-tabbar__item--active"
-        >
-          <BookOpen size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Помощь</span>
-        </button>
-      </nav>
+      <MobileTabbar />
     </div>
   );
 }

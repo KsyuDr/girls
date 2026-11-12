@@ -12,6 +12,13 @@
   --color-text-muted: #6b7a89; /* Вторичный текст и подписи */
   --color-border: #e3e8ef; /* Рамки полей и разделители */
   --color-white: #ffffff;
+
+  /* Движение: уверенное замедление в конце, без «пружин» */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms; /* отклик на нажатие */
+  --dur-base: 220ms; /* смена состояния */
+  --dur-slow: 360ms; /* окна, панели, смена страницы */
 }
 
 *,
@@ -35,6 +42,112 @@ body {
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  caret-color: var(--color-action);
+}
+
+/* Выделение текста и полосы прокрутки — в цветах интерфейса, а не браузера */
+::selection {
+  background-color: rgba(0, 201, 183, 0.28);
+  color: var(--color-primary);
+}
+
+html {
+  scrollbar-color: #c3ced8 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background-color: #c3ced8;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #9fb0bf;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Фокус с клавиатуры виден везде; у компонентов может быть свой цвет */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/*
+ * Плавность по умолчанию для всех кнопок и ссылок. :where() не добавляет специфичности,
+ * поэтому собственные transition и transform компонентов всегда важнее.
+ */
+:where(button, a, select, input, textarea, [role='button']) {
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+/* Нажатие: кнопка чуть «проседает» — понятно, что клик дошёл */
+:where(button:not(:disabled), a[href], [role='button']):active {
+  transform: scale(0.97);
+}
+
+:where(button:disabled) {
+  cursor: not-allowed;
+}
+
+/* Числа в таблицах и счётчиках не «прыгают» при обновлении */
+:where(table, [class*='metric'], [class*='badge'], [class*='count']) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Появление содержимого страницы при переходе между разделами */
+.page-enter {
+  animation: page-enter var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Без сдвига — для экранов с fixed-элементами внутри (карта) */
+.page-enter--fade {
+  animation-name: page-enter-fade;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Без сдвигов: остаются только плавные смены цвета и прозрачности */
+  .page-enter {
+    animation-name: page-enter-fade;
+  }
+
+  :where(button:not(:disabled), a[href], [role='button']):active {
+    transform: none;
+  }
+}
+
+@keyframes page-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 button,
@@ -55,4 +168,50 @@ textarea {
   padding: 0;
   border: 0;
   white-space: nowrap;
+}
+
+/* ---------- Общие hover-состояния повторяющихся элементов шапок ---------- */
+:where([class*='topbar__bell']):hover {
+  background-color: #eef3f7;
+  box-shadow: 0 4px 12px rgba(0, 40, 60, 0.08);
+}
+
+:where([class*='topbar__bell']):hover svg {
+  animation: bell-ring 700ms var(--ease-in-out);
+  transform-origin: 50% 10%;
+}
+
+@keyframes bell-ring {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(14deg);
+  }
+  40% {
+    transform: rotate(-12deg);
+  }
+  60% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-4deg);
+  }
+}
+
+:where([class*='topbar__avatar'], [class*='header__avatar']):hover {
+  box-shadow: 0 0 0 4px rgba(0, 125, 165, 0.18);
+}
+
+:where([class*='__link'], [class*='__expand']):hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where([class*='topbar__bell']):hover svg {
+    animation: none;
+  }
 }

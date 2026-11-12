@@ -1,0 +1,882 @@
+/* ==========================================================================
+   Оболочка приложения: боковое меню, меню профиля, нижняя панель на телефоне.
+   Одна на все страницы — меню не меняется при переходах между разделами.
+   ========================================================================== */
+
+/* ---------- Боковое меню (≥ 961 px) ---------- */
+.shell-sidebar {
+  width: 264px;
+  /* Над меню может висеть баннер «SOS близкого» — его высоту вычитаем */
+  height: calc(100vh - var(--incoming-sos-h, 0px));
+  height: calc(100dvh - var(--incoming-sos-h, 0px));
+  position: sticky;
+  top: var(--incoming-sos-h, 0px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 20px 24px;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  overflow-y: auto;
+  z-index: 5;
+}
+
+.shell-sidebar__top {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% + 12px);
+  margin: -6px;
+  padding: 6px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shell-brand:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.shell-brand:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.shell-brand__icon {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.shell-brand:hover .shell-brand__icon {
+  transform: rotate(-8deg) scale(1.06);
+}
+
+.shell-brand__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background-color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.shell-brand__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shell-brand__name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.shell-brand__city {
+  font-size: 12px;
+  line-height: 17px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.shell-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell-nav__section {
+  margin: 18px 14px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.shell-nav__item {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 21px;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.shell-nav__item svg {
+  flex-shrink: 0;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
+}
+
+.shell-nav__item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--color-white);
+}
+
+.shell-nav__item:hover svg {
+  transform: translateX(2px);
+}
+
+.shell-nav__item:active {
+  transform: scale(0.98);
+}
+
+.shell-nav__item:focus-visible,
+.shell-sos-btn:focus-visible,
+.shell-profile__logout:focus-visible,
+.shell-login-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.shell-nav__item--active {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-white);
+  font-weight: 700;
+}
+
+/* Метка активного раздела: «вырастает» при переходе */
+.shell-nav__item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--color-accent);
+  transform: scaleY(0);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.shell-nav__item--active::before {
+  transform: scaleY(1);
+}
+
+.shell-nav__item--active svg {
+  color: var(--color-accent);
+}
+
+.shell-nav__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.shell-badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  background-color: var(--color-accent);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.shell-badge--danger {
+  background-color: var(--color-danger);
+  color: var(--color-white);
+}
+
+.shell-sidebar__bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shell-sos-btn {
+  width: 100%;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background-color: var(--color-danger);
+  color: var(--color-white);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(237, 5, 54, 0.28);
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+/* Блик пробегает по кнопке при наведении */
+.shell-sos-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 65%
+  );
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.shell-sos-btn:hover {
+  background-color: #d8042f;
+  box-shadow: 0 10px 26px rgba(237, 5, 54, 0.42);
+  transform: translateY(-1px);
+}
+
+.shell-sos-btn:hover::after {
+  transform: translateX(100%);
+  transition: transform 700ms var(--ease-out);
+}
+
+.shell-sos-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 3px 10px rgba(237, 5, 54, 0.3);
+}
+
+.shell-sos-btn:hover .shell-sos-btn__icon {
+  animation: shell-siren-wiggle 600ms var(--ease-in-out);
+}
+
+@keyframes shell-siren-wiggle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+  75% {
+    transform: rotate(-6deg);
+  }
+}
+
+.shell-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.shell-profile__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--color-action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.shell-profile__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell-profile__name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-profile__meta {
+  font-size: 12px;
+  line-height: 17px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.shell-profile__logout {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.shell-profile__logout:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-white);
+}
+
+.shell-login-btn {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-white);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shell-login-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Подтверждение выхода */
+.shell-logout-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  animation: shell-pop-in var(--dur-base) var(--ease-out) both;
+}
+
+.shell-logout-confirm--dark {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.shell-logout-confirm--light {
+  background-color: var(--color-bg);
+  width: 100%;
+}
+
+.shell-logout-confirm__text {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.shell-logout-confirm__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.shell-logout-confirm__yes,
+.shell-logout-confirm__no {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shell-logout-confirm__yes {
+  border: none;
+  background-color: var(--color-danger);
+  color: var(--color-white);
+}
+
+.shell-logout-confirm__yes:hover {
+  background-color: #c9042e;
+}
+
+.shell-logout-confirm--dark .shell-logout-confirm__no:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.shell-logout-confirm--light .shell-logout-confirm__no:hover {
+  background-color: var(--color-bg);
+}
+
+.shell-logout-confirm--dark .shell-logout-confirm__no {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: var(--color-white);
+}
+
+.shell-logout-confirm--light .shell-logout-confirm__no {
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-text);
+}
+
+/* ---------- Меню профиля в шапке ---------- */
+.shell-account {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.shell-account__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 900;
+  width: 260px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background-color: var(--color-white);
+  box-shadow: 0 12px 32px rgba(0, 60, 84, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: top right;
+  animation: shell-pop-in var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes shell-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+}
+
+.shell-account__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 4px;
+}
+
+.shell-account__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.shell-account__meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.shell-account__role {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background-color: #e0f7f4;
+  color: var(--color-accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shell-account__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shell-account__item:hover {
+  background-color: var(--color-bg);
+}
+
+.shell-account__item svg {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.shell-account__item:hover svg {
+  transform: translateX(2px);
+}
+
+.shell-account__item--danger {
+  color: var(--color-danger);
+}
+
+/* ---------- Нижняя панель (≤ 960 px) ---------- */
+.shell-tabbar,
+.shell-sheet {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .shell-sidebar {
+    display: none;
+  }
+
+  .shell-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 800;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    height: calc(72px + env(safe-area-inset-bottom));
+    padding: 0 6px env(safe-area-inset-bottom);
+    background-color: var(--color-white);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .shell-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-height: 56px;
+    padding: 6px 0;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .shell-tab svg {
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .shell-tab--active {
+    color: var(--color-action);
+    font-weight: 700;
+  }
+
+  .shell-tab--active svg {
+    transform: translateY(-2px);
+  }
+
+  .shell-tab__icon-wrap {
+    position: relative;
+    display: flex;
+  }
+
+  .shell-tab__dot {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: var(--color-danger);
+    border: 2px solid var(--color-white);
+  }
+
+  .shell-tabbar__sos-slot {
+    display: flex;
+    justify-content: center;
+  }
+
+  .shell-tabbar__sos {
+    position: relative;
+    top: -16px;
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    border-radius: 50%;
+    border: 4px solid var(--color-white);
+    background: radial-gradient(
+      circle at 35% 28%,
+      #ff5470 0%,
+      var(--color-danger) 48%,
+      #b5002a 100%
+    );
+    box-shadow:
+      0 8px 16px rgba(237, 5, 54, 0.38),
+      inset 0 -4px 8px rgba(110, 0, 20, 0.3);
+    color: var(--color-white);
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+
+  .shell-tabbar__sos:active {
+    transform: scale(0.92);
+  }
+
+  .shell-tabbar__sos-label {
+    position: relative;
+  }
+
+  /* Волна вокруг кнопки: SOS всегда под рукой и заметна */
+  .shell-tabbar__sos-wave {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid rgba(237, 5, 54, 0.45);
+    animation: shell-sos-wave 2.4s var(--ease-out) infinite;
+    pointer-events: none;
+  }
+
+  @keyframes shell-sos-wave {
+    from {
+      transform: scale(1);
+      opacity: 1;
+    }
+    to {
+      transform: scale(1.45);
+      opacity: 0;
+    }
+  }
+
+  .shell-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    display: flex;
+    align-items: flex-end;
+    background-color: rgba(0, 30, 45, 0.45);
+    animation: shell-fade-in var(--dur-base) var(--ease-out) both;
+  }
+
+  .shell-sheet__panel {
+    width: 100%;
+    max-height: 85dvh;
+    overflow-y: auto;
+    padding: 12px 16px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    background-color: var(--color-white);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: shell-sheet-in var(--dur-slow) var(--ease-out) both;
+  }
+
+  .shell-sheet__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 4px 8px;
+  }
+
+  .shell-sheet__title {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .shell-sheet__close {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 10px;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .shell-sheet__list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .shell-sheet__section {
+    display: block;
+    margin: 14px 12px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .shell-sheet__item {
+    width: 100%;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 16px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .shell-sheet__item:active {
+    background-color: var(--color-bg);
+  }
+
+  .shell-sheet__item svg {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .shell-sheet__item--active {
+    background-color: #e5f2f7;
+    color: var(--color-action);
+  }
+
+  .shell-sheet__item--active svg {
+    color: var(--color-action);
+  }
+
+  .shell-sheet__label {
+    flex: 1;
+  }
+
+  .shell-sheet__profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 14px 12px 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .shell-sheet__avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: var(--color-action);
+    color: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .shell-sheet__who {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .shell-sheet__name {
+    font-size: 15px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shell-sheet__meta {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shell-sheet__logout {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    border: 1px solid #f7c3cf;
+    border-radius: 10px;
+    background-color: var(--color-white);
+    color: var(--color-danger);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .shell-sheet .shell-login-btn {
+    border-color: var(--color-action);
+    background-color: var(--color-action);
+  }
+}
+
+@keyframes shell-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes shell-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-sheet__panel,
+  .shell-account__popover,
+  .shell-logout-confirm {
+    animation-name: shell-fade-in;
+  }
+
+  .shell-tabbar__sos-wave,
+  .shell-sos-btn:hover .shell-sos-btn__icon {
+    animation: none;
+  }
+
+  .shell-sos-btn::after {
+    display: none;
+  }
+
+  .shell-nav__item:hover svg,
+  .shell-brand:hover .shell-brand__icon {
+    transform: none;
+  }
+}

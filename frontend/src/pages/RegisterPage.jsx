@@ -164,14 +164,22 @@ export default function RegisterPage({
         <div className="reg-hero__ellipse reg-hero__ellipse--top" aria-hidden="true" />
         <div className="reg-hero__ellipse reg-hero__ellipse--bottom" aria-hidden="true" />
 
-        <div className="reg-hero__brand" data-node-id="3149:21">
-          <div className="reg-hero__logo-box" data-node-id="3149:19">
+        {/* Логотип ведёт на главную, если её уже можно открыть (данные загружены) */}
+        <button
+          type="button"
+          className="reg-hero__brand"
+          onClick={() => canBrowse && onGoHome?.()}
+          disabled={!canBrowse}
+          aria-label="Безопасный город — на главную"
+          data-node-id="3149:21"
+        >
+          <span className="reg-hero__logo-box" data-node-id="3149:19" aria-hidden="true">
             <ShieldCheck size={24} color="#003C54" strokeWidth={2.2} />
-          </div>
+          </span>
           <span className="reg-hero__brand-title" data-node-id="3149:20">
             Безопасный город
           </span>
-        </div>
+        </button>
 
         <div className="reg-hero__content" data-node-id="3149:59">
           <h1 className="reg-hero__heading" data-node-id="3149:22">
@@ -232,7 +240,7 @@ export default function RegisterPage({
       </aside>
 
       {/* Правая область с формой регистрации (Десктоп + Мобильная версия iPhone 16) */}
-      <main className="reg-form-area" data-node-id="3149:114">
+      <main className="reg-form-area page-enter" data-node-id="3149:114">
         <form
           className="reg-card"
           method="post"

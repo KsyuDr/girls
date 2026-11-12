@@ -432,6 +432,8 @@ export function adaptOperatorIncident(incident, typesById, now = new Date()) {
     anonymous: incident.isAnonymous,
     photosCount: incident.photos.length,
     author: incident.author,
+    lat: incident.lat,
+    lng: incident.lng,
   };
 }
 
@@ -489,6 +491,24 @@ export function adaptModerationSos(sos) {
   };
 }
 
+/** SOS близкого человека: мой номер есть в его экстренных контактах. */
+export function adaptIncomingSos(sos) {
+  const hasPoint = sos.lat !== null && sos.lng !== null;
+  return {
+    id: sos.id,
+    senderName: sos.sender.name,
+    phone: sos.sender.phone,
+    displayPhone: formatPhone(sos.sender.phone),
+    relation: sos.relation,
+    address: sos.address || (hasPoint ? 'Адрес не указан' : 'Местоположение неизвестно'),
+    lat: sos.lat,
+    lng: sos.lng,
+    hasPoint,
+    accuracyMeters: sos.accuracyMeters,
+    startedAt: Date.parse(sos.startedAt),
+  };
+}
+
 /** Весь ответ GET /api/dashboard → объект, который App.jsx кладёт в state. */
 export function adaptDashboard(data) {
   const ref = data.reference;
@@ -522,6 +542,8 @@ export function adaptDashboard(data) {
     reportNextSteps: adaptReportSteps(ref.reportNextSteps),
     cities: ref.cities,
     activeSos: activeSos ? adaptSos(activeSos) : null,
+    incomingSos: (data.incomingSos || []).map(adaptIncomingSos),
+    mapCenter: center,
     operatorIncidents: data.moderation
       ? data.moderation.incidents.map((i) => adaptOperatorIncident(i, typesById))
       : [],

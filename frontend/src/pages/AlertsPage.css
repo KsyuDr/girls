@@ -221,13 +221,38 @@
   gap: 8px;
   cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
+    background-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.alerts-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(29, 42, 55, 0.1);
+}
+
+.alerts-card:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.alerts-card:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
 }
 
 .alerts-card--selected {
   background-color: #f2f9fc;
   box-shadow: 0 12px 16px rgba(29, 42, 55, 0.12);
+}
+
+/* Раскрытая памятка на телефоне */
+.alerts-card__mobile-extra {
+  animation: page-enter var(--dur-slow) var(--ease-out) both;
+}
+
+/* Смена выбранного оповещения: текст справа мягко обновляется */
+.alerts-swap {
+  animation: page-enter var(--dur-slow) var(--ease-out) both;
 }
 
 .alerts-card__head {
@@ -287,6 +312,9 @@
 .alerts-detail-card {
   flex: 1;
   min-width: 0;
+  /* Подробности остаются на виду, пока прокручивается длинный список */
+  position: sticky;
+  top: calc(24px + var(--incoming-sos-h, 0px));
   background-color: var(--color-white);
   border-radius: 16px;
   padding: 28px;
@@ -343,99 +371,137 @@
   color: var(--color-text);
 }
 
-/* Мини-карта зоны оповещения */
+/* Мини-карта: настоящая карта города, по клику — раздел «Карта» */
 .alerts-detail-map {
-  width: 100%;
-  height: 210px;
-  border-radius: 12px;
-  background-color: #eef2f5;
   position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  height: 220px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background-color: #e8eef3;
   overflow: hidden;
+  isolation: isolate;
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
 
-.alerts-detail-map__grid {
+.alerts-detail-map:hover {
+  border-color: #b8d9e6;
+  box-shadow: 0 8px 24px rgba(0, 60, 84, 0.12);
+}
+
+/* Прозрачная кнопка поверх карты: вся карта — ссылка на раздел «Карта» */
+.alerts-detail-map__hit {
   position: absolute;
-  inset: -20px;
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(3, 86px);
-  gap: 16px;
+  inset: 0;
+  z-index: 500;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
 }
 
-.alerts-detail-map__block {
-  background-color: #e0e6ec;
-  border-radius: 6px;
+.alerts-detail-map__hit:active {
+  transform: none;
 }
 
-.alerts-detail-map__river {
+.alerts-detail-map__hit:focus-visible {
+  outline-offset: -3px;
+}
+
+.alerts-detail-map__map {
   position: absolute;
-  top: 40px;
-  left: -10%;
-  width: 120%;
-  height: 44px;
-  background-color: #c6e4ef;
-  transform: rotate(-8deg);
-}
-
-.alerts-detail-map__road {
-  position: absolute;
-  background-color: var(--color-white);
-}
-
-.alerts-detail-map__road--h {
-  top: 110px;
-  left: -10%;
-  width: 120%;
-  height: 14px;
-  transform: rotate(12deg);
-}
-
-.alerts-detail-map__road--v {
-  top: -20%;
-  left: 48%;
-  width: 14px;
-  height: 140%;
-  transform: rotate(12deg);
-}
-
-.alerts-detail-map__danger-zone {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 280px;
-  height: 280px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(237, 5, 54, 0.28) 0%,
-    rgba(237, 5, 54, 0.12) 48%,
-    rgba(237, 5, 54, 0) 72%
-  );
+  inset: 0;
+  min-height: 0;
   pointer-events: none;
+  transition: transform 600ms var(--ease-out);
 }
 
-.alerts-detail-map__user-pin {
+.alerts-detail-map:hover .alerts-detail-map__map {
+  transform: scale(1.03);
+}
+
+.alerts-detail-map__loading {
   position: absolute;
-  left: 44%;
-  top: 56%;
-  width: 64px;
-  height: 64px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background-color: rgba(0, 125, 165, 0.18);
+  inset: 0;
+  background: linear-gradient(100deg, #e8eef3 30%, #f2f6f9 50%, #e8eef3 70%) 0 0 / 300% 100%;
+  animation: alerts-map-shimmer 1.4s linear infinite;
+}
+
+@keyframes alerts-map-shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.alerts-detail-map__zone {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 72px);
+  padding: 7px 12px;
+  border-radius: 100px;
+  background-color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 12px rgba(0, 40, 60, 0.16);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alerts-detail-map__zone svg {
+  flex-shrink: 0;
+  color: var(--color-danger);
+}
+
+.alerts-detail-map__open {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 12px rgba(0, 40, 60, 0.16);
+  color: var(--color-action);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 
-.alerts-detail-map__user-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: var(--color-action);
-  border: 3px solid var(--color-white);
-  box-shadow: 0 2px 6px rgba(0, 60, 84, 0.35);
+.alerts-detail-map:hover .alerts-detail-map__open {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alerts-detail-map__loading {
+    animation: none;
+  }
+
+  .alerts-swap,
+  .alerts-card__mobile-extra {
+    animation-name: page-enter-fade;
+  }
+
+  .alerts-card:hover,
+  .alerts-card:active {
+    transform: none;
+  }
+
+  .alerts-detail-map:hover .alerts-detail-map__map,
+  .alerts-detail-map:hover .alerts-detail-map__open {
+    transform: none;
+  }
 }
 
 /* Чек-лист «Что делать» */
@@ -521,6 +587,10 @@
    МОБИЛЬНАЯ ВЕРСИЯ (iPhone 16 · < 960px)
    ========================================================================== */
 @media (max-width: 960px) {
+  .alerts-detail-card {
+    position: static;
+  }
+
   .alerts-topbar,
   .alerts-push-pill,
   .alerts-detail-card {

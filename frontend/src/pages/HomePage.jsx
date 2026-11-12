@@ -1,12 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  ShieldCheck,
-  Home,
   Bell,
-  Map,
   TriangleAlert,
   Users,
-  BookOpen,
   Siren,
   Search,
   Check,
@@ -17,10 +13,27 @@ import {
   MessageCircle,
   Plus,
   MapPin,
-  LayoutDashboard,
+  CircleAlert,
 } from 'lucide-react';
 import { plural } from '../services/adapters';
+import { AppSidebar, AccountMenu, MobileTabbar } from '../components/AppShell';
 import './HomePage.css';
+
+/** Галочка — всё готово к SOS, восклицательный знак — чего-то не хватает. */
+function SosCheckIcon({ ok, nodeId }) {
+  return (
+    <div
+      className={`home-sos-check__icon ${ok ? '' : 'home-sos-check__icon--warn'}`}
+      data-node-id={nodeId}
+    >
+      {ok ? (
+        <Check size={14} color="#008F82" strokeWidth={2.5} aria-hidden="true" />
+      ) : (
+        <CircleAlert size={14} color="#C2410C" strokeWidth={2.5} aria-hidden="true" />
+      )}
+    </div>
+  );
+}
 
 const SERVICE_ICONS = {
   siren: Siren,
@@ -41,7 +54,6 @@ export default function HomePage({
   services,
   alerts,
   contacts,
-  canModerate = false,
   onNavigate,
   onTriggerSos,
   onConfirmSos,
@@ -75,6 +87,7 @@ export default function HomePage({
     : hasLocation
       ? 'Геолокация включена'
       : 'Местоположение не определено';
+  const locationReady = user.geolocationEnabled && hasLocation;
   const accuracyText =
     typeof user.accuracyMeters === 'number' ? ` · точность ${user.accuracyMeters} м` : '';
 
@@ -117,108 +130,16 @@ export default function HomePage({
     };
   }, []);
 
-  const handleNavClick = (navId) => {
-    onNavigate?.(navId);
-  };
-
-  const navItems = [
-    { id: 'home', label: 'Главная', icon: Home },
-    { id: 'alerts', label: 'Оповещения', icon: Bell },
-    { id: 'map', label: 'Карта', icon: Map },
-    { id: 'report', label: 'Сообщить', icon: TriangleAlert },
-    { id: 'contacts', label: 'Контакты', icon: Users },
-    { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
-  ];
-
   const mobileServices = services.filter((s) => s.showOnMobileHome);
   const latestAlert = alerts[0];
   const homePreviewContacts = activeSosContacts.slice(0, 3);
 
   return (
     <div className="home-page" data-node-id="3149:292">
-      {/* Боковое меню (Десктоп MacBook Pro 14") */}
-      <aside className="home-sidebar" data-node-id="3149:364">
-        <div className="home-sidebar__top" data-node-id="3149:344">
-          <div className="home-sidebar__logo" data-node-id="3149:302">
-            <div className="home-sidebar__logo-icon" data-node-id="3149:298">
-              <ShieldCheck size={22} color="#003C54" strokeWidth={2.2} aria-hidden="true" />
-            </div>
-            <div className="home-sidebar__logo-text" data-node-id="3149:301">
-              <span className="home-sidebar__brand" data-node-id="3149:299">
-                Безопасный город
-              </span>
-              <span className="home-sidebar__city" data-node-id="3149:300">
-                {user.city}
-              </span>
-            </div>
-          </div>
-
-          <nav
-            className="home-sidebar__nav"
-            aria-label="Основная навигация"
-            data-node-id="3149:343"
-          >
-            {navItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = item.id === 'home';
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleNavClick(item.id)}
-                  className={`home-sidebar__nav-item ${
-                    isActive ? 'home-sidebar__nav-item--active' : ''
-                  }`}
-                >
-                  <IconComponent
-                    size={20}
-                    color={isActive ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="home-sidebar__bottom" data-node-id="3149:363">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="home-sidebar__sos-btn"
-            data-node-id="3149:362"
-          >
-            <Siren size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-            <span>Экстренный вызов SOS</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate?.('register')}
-            className="home-sidebar__profile"
-            title="Перейти к анкете регистрации"
-            data-node-id="3149:350"
-          >
-            <div className="home-sidebar__avatar" data-node-id="3149:346">
-              <span>{user.initials}</span>
-            </div>
-            <div className="home-sidebar__profile-info" data-node-id="3149:349">
-              <span className="home-sidebar__profile-name" data-node-id="3149:347">
-                {user.mobileName}
-              </span>
-              <span className="home-sidebar__profile-phone" data-node-id="3149:348">
-                {user.displayPhone}
-              </span>
-            </div>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Основная рабочая область */}
-      <main className="home-main" data-node-id="3149:293">
+      <main className="home-main page-enter" data-node-id="3149:293">
         {/* Верхняя панель (Topbar) */}
         <header className="home-topbar" data-node-id="3149:289">
           <div className="home-topbar__title-group" data-node-id="3149:273">
@@ -264,15 +185,7 @@ export default function HomePage({
               <span className="home-topbar__bell-dot" data-node-id="3149:285" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => onNavigate?.('register')}
-              className="home-topbar__avatar"
-              title="Профиль"
-              data-node-id="3149:287"
-            >
-              <span>{user.initials}</span>
-            </button>
+            <AccountMenu className="home-topbar__avatar" />
           </div>
         </header>
 
@@ -280,9 +193,35 @@ export default function HomePage({
         <div className="home-row" data-node-id="3149:290">
           {/* Карточка SOS */}
           <section className="home-sos-card" data-node-id="3149:147">
-            <div className="home-sos-visual" data-node-id="3149:118">
-              <div className="home-sos-ring home-sos-ring--outer" />
-              <div className="home-sos-ring home-sos-ring--middle" />
+            <div
+              className={`home-sos-visual ${
+                sosState === 'holding' ? 'home-sos-visual--holding' : ''
+              }`}
+              data-node-id="3149:118"
+            >
+              <div className="home-sos-ring home-sos-ring--outer" aria-hidden="true" />
+              <div className="home-sos-ring home-sos-ring--middle" aria-hidden="true" />
+              <span className="home-sos-wave" aria-hidden="true" />
+              <span className="home-sos-wave home-sos-wave--late" aria-hidden="true" />
+              {/* Кольцо удержания: заполняется за 3 секунды */}
+              <svg className="home-sos-progress" viewBox="0 0 100 100" aria-hidden="true">
+                <circle
+                  className="home-sos-progress__track"
+                  cx="50"
+                  cy="50"
+                  r="46"
+                  pathLength="100"
+                />
+                <circle
+                  className="home-sos-progress__bar"
+                  cx="50"
+                  cy="50"
+                  r="46"
+                  pathLength="100"
+                  strokeDasharray="100"
+                  strokeDashoffset={100 - holdProgress}
+                />
+              </svg>
               <button
                 type="button"
                 onMouseDown={startHold}
@@ -307,6 +246,7 @@ export default function HomePage({
                 aria-label="Экстренный вызов SOS — удерживайте 3 секунды"
                 data-node-id="3149:121"
               >
+                <span className="home-sos-button__gloss" aria-hidden="true" />
                 <span className="home-sos-button__title" data-node-id="3149:115">
                   SOS
                 </span>
@@ -349,7 +289,10 @@ export default function HomePage({
 
             {/* Десктопное описание справа от кнопки SOS */}
             <div className="home-sos-details" data-node-id="3149:146">
-              <div className="home-sos-badge" data-node-id="3149:123">
+              <div
+                className={`home-sos-badge ${locationReady ? '' : 'home-sos-badge--warn'}`}
+                data-node-id="3149:123"
+              >
                 <span>{geoStatus}</span>
               </div>
 
@@ -363,9 +306,7 @@ export default function HomePage({
               </p>
 
               <div className="home-sos-check" data-node-id="3149:131">
-                <div className="home-sos-check__icon" data-node-id="3149:129">
-                  <Check size={14} color="#008F82" strokeWidth={2.5} aria-hidden="true" />
-                </div>
+                <SosCheckIcon ok={locationReady} nodeId="3149:129" />
                 <span className="home-sos-check__text" data-node-id="3149:130">
                   Координаты: {user.address}
                   {accuracyText}
@@ -373,9 +314,7 @@ export default function HomePage({
               </div>
 
               <div className="home-sos-check" data-node-id="3149:137">
-                <div className="home-sos-check__icon" data-node-id="3149:135">
-                  <Check size={14} color="#008F82" strokeWidth={2.5} aria-hidden="true" />
-                </div>
+                <SosCheckIcon ok={activeSosContacts.length > 0} nodeId="3149:135" />
                 <span className="home-sos-check__text" data-node-id="3149:136">
                   Получат: {activeRecipientsLabel}
                 </span>
@@ -663,43 +602,7 @@ export default function HomePage({
         </div>
       </main>
 
-      {/* Нижняя панель навигации (Мобильная версия iPhone 16) */}
-      <nav className="home-tabbar" aria-label="Мобильная навигация" data-node-id="3149:2444">
-        <button
-          type="button"
-          onClick={() => onNavigate?.('home')}
-          className="home-tabbar__item home-tabbar__item--active"
-        >
-          <Home size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Главная</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('map')} className="home-tabbar__item">
-          <Map size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Карта</span>
-        </button>
-
-        <div className="home-tabbar__sos-slot">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="home-tabbar__sos-btn"
-            data-node-id="3149:2471"
-          >
-            <span>SOS</span>
-          </button>
-        </div>
-
-        <button type="button" onClick={() => onNavigate?.('alerts')} className="home-tabbar__item">
-          <Bell size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Лента</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('guides')} className="home-tabbar__item">
-          <BookOpen size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Помощь</span>
-        </button>
-      </nav>
+      <MobileTabbar />
     </div>
   );
 }

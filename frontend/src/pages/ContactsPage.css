@@ -727,3 +727,30 @@
     flex-shrink: 0;
   }
 }
+
+/* Hover и нажатие (окно контакта используется и для оповещений модератора) */
+.contacts-dialog__cancel:hover {
+  background-color: var(--color-bg);
+}
+
+.contacts-dialog__submit:hover:not(:disabled) {
+  background-color: #006a8c;
+  box-shadow: 0 6px 16px rgba(0, 125, 165, 0.28);
+}
+
+.contacts-more-btn:hover {
+  background-color: #e3e9f0;
+}
+
+.contacts-switch:hover {
+  filter: brightness(0.96);
+}
+
+/* Окно контакта и оповещения появляется плавно */
+.contacts-dialog[open] {
+  animation: ui-modal-card-in var(--dur-slow) var(--ease-out) both;
+}
+
+.contacts-dialog[open]::backdrop {
+  animation: ui-modal-fade-in var(--dur-base) var(--ease-out) both;
+}

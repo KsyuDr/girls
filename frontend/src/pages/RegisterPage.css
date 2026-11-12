@@ -45,9 +45,31 @@
 .reg-hero__brand {
   position: relative;
   z-index: 1;
+  align-self: flex-start;
   display: flex;
   align-items: center;
   gap: 12px;
+  margin: -6px;
+  padding: 6px 12px 6px 6px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reg-hero__brand:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.reg-hero__brand:disabled {
+  cursor: default;
+}
+
+.reg-hero__brand:focus-visible {
+  outline-color: var(--color-accent);
 }
 
 .reg-hero__logo-box {

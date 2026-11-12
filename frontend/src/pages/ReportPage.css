@@ -794,3 +794,17 @@
   gap: 8px;
   margin-top: 6px;
 }
+
+/* ---------- Hover и нажатие ---------- */
+.report-danger-card__sos-btn:hover {
+  background-color: #c9042e;
+  box-shadow: 0 6px 16px rgba(237, 5, 54, 0.3);
+}
+
+.report-photo-slot:hover {
+  background-color: #dbe3ea;
+}
+
+.report-switch:hover {
+  filter: brightness(0.96);
+}

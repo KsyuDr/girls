@@ -1,11 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
-  ShieldCheck,
   FileText,
-  Map,
   Siren,
   Bell,
-  LayoutDashboard,
   Plus,
   Clock,
   Zap,
@@ -14,24 +11,44 @@ import {
   Flame,
   CloudRain,
   Users,
-  Shield,
   MoreHorizontal,
-  ArrowLeft,
   Check,
   X,
   Pencil,
   EyeOff,
   Eye,
+  ArrowRight,
+  HandHelping,
+  Search,
+  PackageCheck,
 } from 'lucide-react';
-import { elapsedLabel, ALERT_LEVEL_CONFIG } from '../services/adapters';
+import { elapsedLabel, ALERT_LEVEL_CONFIG, nearCenter } from '../services/adapters';
+import { AppSidebar, AccountMenu, MobileTabbar } from '../components/AppShell';
+import { useShell } from '../components/shellContext';
+import { useConfirm } from '../components/confirmContext';
+import StatusMenu from '../components/StatusMenu';
 import './OperatorPanelPage.css';
 
+const CityMap = lazy(() => import('../components/CityMap'));
+
+// Цвет точки на мини-карте — по статусу обращения
+const STATUS_PIN_COLORS = {
+  new: '#ED0536',
+  in_progress: '#007DA5',
+  closed: '#008F82',
+  hidden: '#8A97A5',
+};
+
+// Иконка по типу метки (как в справочнике бэкенда, reference/catalog.py)
 const INCIDENT_TYPE_ICONS = {
   car: { Icon: Car, color: '#007DA5' },
   flame: { Icon: Flame, color: '#ED0536' },
   'cloud-rain': { Icon: CloudRain, color: '#007DA5' },
   users: { Icon: Users, color: '#ED0536' },
   zap: { Icon: Zap, color: '#003C54' },
+  'hand-helping': { Icon: HandHelping, color: '#008F82' },
+  search: { Icon: Search, color: '#6B7A89' },
+  'package-check': { Icon: PackageCheck, color: '#008F82' },
   'more-horizontal': { Icon: MoreHorizontal, color: '#6B7A89' },
 };
 
@@ -42,7 +59,28 @@ const STATUS_BADGE_STYLES = {
   hidden: { bg: '#EDF1F5', color: '#6B7A89', label: 'Скрыто' },
 };
 
-const STATUS_OPTIONS = ['new', 'in_progress', 'closed', 'hidden'];
+const STATUS_OPTIONS = ['new', 'in_progress', 'closed', 'hidden'].map((value) => ({
+  value,
+  ...STATUS_BADGE_STYLES[value],
+}));
+
+// Что сообщить после смены статуса
+const STATUS_DONE_TEXT = {
+  new: 'снова новое',
+  in_progress: 'взято в работу',
+  closed: 'закрыто',
+  hidden: 'скрыто с карты',
+};
+
+function StatusPill({ status }) {
+  const cfg = STATUS_BADGE_STYLES[status] || STATUS_BADGE_STYLES.new;
+  return (
+    <span className="operator-status-pill" style={{ backgroundColor: cfg.bg, color: cfg.color }}>
+      <span className="operator-status-pill__dot" style={{ backgroundColor: cfg.color }} />
+      {cfg.label}
+    </span>
+  );
+}
 
 // Порядок переключения фильтра таблицы
 const NEXT_FILTER = { all: 'new', new: 'in_progress', in_progress: 'hidden', hidden: 'all' };
@@ -135,12 +173,26 @@ export default function OperatorPanelPage({
   onResolveSos,
   onCreateAlert,
   onUpdateAlert,
+  onShowOnMap,
+  focusSection = 'incidents',
+  mapCenter = null,
   onNavigate,
 }) {
-  const [activeTab, setActiveTab] = useState('incidents'); // 'incidents' | 'sos' | 'reports'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'new' | 'in_progress' | 'hidden'
   const [resolvingId, setResolvingId] = useState(null);
+  const [savingStatusId, setSavingStatusId] = useState(null);
+  const [flashId, setFlashId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
+  const confirm = useConfirm();
+  const { onNotify } = useShell();
+
+  const sosSectionRef = useRef(null);
+
+  // Пункт меню «SOS-сигналы» ведёт на эту же страницу и прокручивает к сигналам
+  useEffect(() => {
+    if (focusSection === 'sos') sosSectionRef.current?.scrollIntoView({ block: 'start' });
+    else window.scrollTo({ top: 0 });
+  }, [focusSection]);
 
   // «Сигнал N мин назад» и «за последний час» пересчитываем раз в полминуты
   useEffect(() => {
@@ -190,30 +242,109 @@ export default function OperatorPanelPage({
     }
   }
 
+  const miniMapMarkers = useMemo(
+    () => [
+      // Точки дальше 30 км от центра (ошибочные координаты) не растягивают карту на весь мир
+      ...(mapCenter ? nearCenter(incidents, mapCenter) : incidents)
+        .filter((inc) => typeof inc.lat === 'number' && typeof inc.lng === 'number')
+        .map((inc) => ({
+          id: `inc-${inc.rawId ?? inc.id}`,
+          lat: inc.lat,
+          lng: inc.lng,
+          color: STATUS_PIN_COLORS[inc.status] || STATUS_PIN_COLORS.new,
+          icon: inc.icon === 'flame' ? 'flame' : 'triangle-alert',
+          label: `${inc.id} ${inc.typeLabel} — ${inc.address}`,
+          kind: 'place',
+        })),
+      ...sosSignals
+        .filter((sos) => typeof sos.lat === 'number' && typeof sos.lng === 'number')
+        .map((sos) => ({
+          id: `sos-${sos.id}`,
+          lat: sos.lat,
+          lng: sos.lng,
+          color: '#ED0536',
+          icon: 'siren',
+          label: `SOS: ${sos.userName} — ${sos.address}`,
+          kind: 'sos',
+        })),
+    ],
+    [incidents, sosSignals, mapCenter]
+  );
+
+  // Клик по SOS на мини-карте открывает большую карту с этим сигналом
+  const handleMiniMapSelect = (markerId) => {
+    const sos = sosSignals.find((s) => `sos-${s.id}` === markerId);
+    if (sos) onShowOnMap?.({ type: 'sos', id: sos.id, lat: sos.lat, lng: sos.lng });
+  };
+
   const visibleIncidents =
     statusFilter === 'all' ? incidents : incidents.filter((inc) => inc.status === statusFilter);
 
   // Статус выбирается явно; «Скрыть», «Закрыть» и возврат скрытой метки — с подтверждением
-  const handleStatusChange = (incident, nextStatus) => {
+  const handleStatusChange = async (incident, nextStatus) => {
     if (nextStatus === incident.status) return;
-    let question = '';
+    let question = null;
     if (nextStatus === 'hidden') {
-      question = `Скрыть метку ${incident.id}? Она пропадёт с карты у всех жителей.`;
+      question = {
+        title: `Скрыть метку ${incident.id}?`,
+        message: 'Она пропадёт с карты у всех жителей. Вернуть можно в любой момент.',
+        confirmLabel: 'Скрыть метку',
+        tone: 'danger',
+      };
     } else if (incident.status === 'hidden') {
-      question = `Вернуть метку ${incident.id} на карту? Её снова увидят все жители.`;
+      question = {
+        title: `Вернуть метку ${incident.id} на карту?`,
+        message: 'Её снова увидят все жители.',
+        confirmLabel: 'Вернуть на карту',
+        tone: 'primary',
+      };
     } else if (nextStatus === 'closed') {
-      question = `Закрыть обращение ${incident.id}? Отклики помощников будут отмечены выполненными.`;
+      question = {
+        title: `Закрыть обращение ${incident.id}?`,
+        message: 'Отклики помощников будут отмечены выполненными.',
+        confirmLabel: 'Закрыть обращение',
+        tone: 'success',
+      };
     }
-    if (question && !window.confirm(question)) return;
-    onUpdateIncidentStatus?.(incident.id, nextStatus);
+    if (question) {
+      const ok = await confirm({
+        ...question,
+        content: (
+          <div className="ui-status-change" aria-label="Смена статуса">
+            <span className="operator-status-change__what">
+              {incident.typeLabel} · {incident.address}
+            </span>
+            <StatusPill status={incident.status} />
+            <ArrowRight
+              size={18}
+              strokeWidth={2.4}
+              className="ui-status-change__arrow"
+              aria-hidden="true"
+            />
+            <StatusPill status={nextStatus} />
+          </div>
+        ),
+      });
+      if (!ok) return;
+    }
+    setSavingStatusId(incident.id);
+    const saved = await onUpdateIncidentStatus?.(incident.id, nextStatus);
+    setSavingStatusId(null);
+    if (saved !== false) {
+      onNotify(`Обращение ${incident.id} ${STATUS_DONE_TEXT[nextStatus] || 'обновлено'}`);
+      setFlashId(incident.id);
+    }
   };
 
   const handleResolve = async (sos) => {
-    if (
-      !window.confirm(`Отметить, что помощь пришла (${sos.userName})? Сигнал SOS будет закрыт.`)
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Помощь пришла?',
+      message: `Сигнал SOS от ${sos.userName} будет закрыт, а на экране у жителя появится «помощь пришла». Отменить это нельзя.`,
+      confirmLabel: 'Да, помощь пришла',
+      cancelLabel: 'Ещё нет',
+      tone: 'success',
+    });
+    if (!ok) return;
     setResolvingId(sos.id);
     try {
       await onResolveSos?.(sos.id);
@@ -250,10 +381,22 @@ export default function OperatorPanelPage({
   // Снять с публикации / вернуть — с подтверждением, как и скрытие метки
   const handleToggleAlertPublished = async (alert) => {
     const published = alert.isPublished !== false;
-    const question = published
-      ? `Снять оповещение «${alert.title}» с публикации? Жители перестанут его видеть.`
-      : `Вернуть оповещение «${alert.title}» в ленту? Его снова увидят все жители.`;
-    if (!window.confirm(question)) return;
+    const ok = await confirm(
+      published
+        ? {
+            title: 'Снять оповещение с публикации?',
+            message: `«${alert.title}» пропадёт из ленты у всех жителей. Вернуть можно в любой момент.`,
+            confirmLabel: 'Снять с публикации',
+            tone: 'danger',
+          }
+        : {
+            title: 'Вернуть оповещение в ленту?',
+            message: `«${alert.title}» снова увидят все жители.`,
+            confirmLabel: 'Вернуть в ленту',
+            tone: 'primary',
+          }
+    );
+    if (!ok) return;
     setAlertTogglingId(alert.id);
     try {
       await onUpdateAlert?.(
@@ -262,7 +405,7 @@ export default function OperatorPanelPage({
         published ? 'Оповещение снято с публикации' : 'Оповещение снова в ленте'
       );
     } catch (error) {
-      window.alert(error?.message || 'Не удалось изменить оповещение');
+      onNotify(error?.message || 'Не удалось изменить оповещение', 'error');
     } finally {
       setAlertTogglingId(null);
     }
@@ -311,162 +454,16 @@ export default function OperatorPanelPage({
 
   return (
     <div className="operator-layout" data-node-id="3149:2216">
-      {/* Боковая панель модератора (Десктоп MacBook Pro 14" · 3149:2282) */}
-      <aside className="operator-sidebar" data-node-id="3149:2282">
-        <div className="operator-sidebar__top" data-node-id="3149:2274">
-          <div className="operator-sidebar__logo" data-node-id="3149:2226">
-            <div className="operator-sidebar__logo-icon" data-node-id="3149:2222">
-              <ShieldCheck size={22} color="#003C54" strokeWidth={2.2} aria-hidden="true" />
-            </div>
-            <div className="operator-sidebar__logo-text" data-node-id="3149:2225">
-              <span className="operator-sidebar__brand" data-node-id="3149:2223">
-                Безопасный город
-              </span>
-              <span className="operator-sidebar__subtitle" data-node-id="3149:2224">
-                Панель модератора
-              </span>
-            </div>
-          </div>
-
-          <nav
-            className="operator-sidebar__nav"
-            aria-label="Навигация модератора"
-            data-node-id="3149:2273"
-          >
-            <button
-              type="button"
-              onClick={() => setActiveTab('incidents')}
-              className={`operator-sidebar__nav-item ${
-                activeTab === 'incidents' ? 'operator-sidebar__nav-item--active' : ''
-              }`}
-              data-node-id="3149:2237"
-            >
-              <FileText
-                size={20}
-                color={activeTab === 'incidents' ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-              <span className="operator-sidebar__nav-label">Обращения</span>
-              <span
-                className="operator-sidebar__badge operator-sidebar__badge--teal"
-                data-node-id="3149:2236"
-              >
-                {displayedNewCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate?.('map')}
-              className="operator-sidebar__nav-item"
-              data-node-id="3149:2244"
-            >
-              <Map size={20} color="rgba(255, 255, 255, 0.75)" strokeWidth={2} aria-hidden="true" />
-              <span className="operator-sidebar__nav-label">Карта</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('sos')}
-              className={`operator-sidebar__nav-item ${
-                activeTab === 'sos' ? 'operator-sidebar__nav-item--active' : ''
-              }`}
-              data-node-id="3149:2258"
-            >
-              <Siren
-                size={20}
-                color={activeTab === 'sos' ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-              <span className="operator-sidebar__nav-label">SOS-сигналы</span>
-              <span
-                className="operator-sidebar__badge operator-sidebar__badge--red"
-                data-node-id="3149:2257"
-              >
-                {sosCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate?.('alerts')}
-              className="operator-sidebar__nav-item"
-              data-node-id="3149:2264"
-            >
-              <Bell
-                size={20}
-                color="rgba(255, 255, 255, 0.75)"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-              <span className="operator-sidebar__nav-label">Оповещения</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('reports')}
-              className={`operator-sidebar__nav-item ${
-                activeTab === 'reports' ? 'operator-sidebar__nav-item--active' : ''
-              }`}
-              data-node-id="3149:2272"
-            >
-              <LayoutDashboard
-                size={20}
-                color={activeTab === 'reports' ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-              <span className="operator-sidebar__nav-label">Отчёты</span>
-            </button>
-          </nav>
-        </div>
-
-        <div className="operator-sidebar__bottom" data-node-id="3149:2281">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('home')}
-            className="operator-sidebar__back-btn"
-          >
-            <ArrowLeft size={18} color="#00C9B7" strokeWidth={2} aria-hidden="true" />
-            <span>Режим жителя</span>
-          </button>
-
-          <div className="operator-sidebar__profile" data-node-id="3149:2280">
-            <div className="operator-sidebar__avatar" data-node-id="3149:2276">
-              <span>{operatorProfile?.initials || 'М'}</span>
-            </div>
-            <div className="operator-sidebar__profile-info" data-node-id="3149:2279">
-              <span className="operator-sidebar__profile-name" data-node-id="3149:2277">
-                {operatorProfile?.name || 'Модератор'}
-              </span>
-              <span className="operator-sidebar__profile-role" data-node-id="3149:2278">
-                {operatorProfile?.role || 'Модератор'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Основная рабочая область (1248px · 3149:2217) */}
-      <main className="operator-main" data-node-id="3149:2217">
+      <main className="operator-main page-enter" data-node-id="3149:2217">
         {/* Верхняя шапка */}
         <header className="operator-topbar" data-node-id="3149:2214">
           <div className="operator-topbar__titles" data-node-id="3149:2212">
-            <div className="operator-topbar__mobile-back-row">
-              <button
-                type="button"
-                onClick={() => onNavigate?.('home')}
-                className="operator-mobile-back-btn"
-                aria-label="Вернуться на главную"
-              >
-                <ArrowLeft size={20} color="#1D2A37" strokeWidth={2.2} />
-              </button>
-              <h1 className="operator-topbar__title" data-node-id="3149:2210">
-                Обращения
-              </h1>
-            </div>
+            <h1 className="operator-topbar__title" data-node-id="3149:2210">
+              {focusSection === 'sos' ? 'SOS-сигналы' : 'Обращения'}
+            </h1>
             <p className="operator-topbar__subtitle" data-node-id="3149:2211">
               {operatorProfile?.dateSubtitle}
             </p>
@@ -480,7 +477,7 @@ export default function OperatorPanelPage({
               data-node-id="3149:2201"
             >
               <Plus size={18} color="#FFFFFF" strokeWidth={2.2} aria-hidden="true" />
-              <span>Создать оповещение</span>
+              <span className="operator-create-alert-btn__label">Создать оповещение</span>
             </button>
 
             <button
@@ -495,9 +492,7 @@ export default function OperatorPanelPage({
               <span className="operator-topbar__bell-dot" aria-hidden="true" />
             </button>
 
-            <div className="operator-topbar__avatar" data-node-id="3149:2209">
-              {operatorProfile?.initials || 'М'}
-            </div>
+            <AccountMenu className="operator-topbar__avatar" />
           </div>
         </header>
 
@@ -605,59 +600,79 @@ export default function OperatorPanelPage({
           {/* Левая колонка (764px · 3149:2133) */}
           <div className="operator-left-col" data-node-id="3149:2133">
             {/* Активные SOS жителей (настоящие сигналы с сервера) */}
-            {sosSignals.length === 0 ? (
-              <section className="operator-sos-empty" aria-label="Активные сигналы SOS">
-                <Siren size={20} color="#6B7A89" strokeWidth={2} aria-hidden="true" />
-                <span>Активных сигналов SOS нет</span>
-              </section>
-            ) : (
-              sosSignals.map((sos) => (
-                <section
-                  key={sos.id}
-                  className="operator-sos-banner"
-                  aria-label={`Активный сигнал SOS: ${sos.userName}`}
-                >
-                  <div className="operator-sos-banner__icon">
-                    <Siren size={22} color="#FFFFFF" strokeWidth={2.2} aria-hidden="true" />
-                  </div>
-
-                  <div className="operator-sos-banner__info">
-                    <span className="operator-sos-banner__title">
-                      Активный SOS · {sos.userName}
-                    </span>
-                    <span className="operator-sos-banner__sub">
-                      {sos.address} ·{' '}
-                      <a href={`tel:${sos.phone}`} className="operator-sos-banner__phone">
-                        {sos.displayPhone}
-                      </a>{' '}
-                      · {elapsedLabel(now - sos.startedAt)} · получили контактов:{' '}
-                      {sos.notifiedCount}
-                    </span>
-                  </div>
-
-                  <div className="operator-sos-banner__actions">
-                    <button
-                      type="button"
-                      onClick={() => handleResolve(sos)}
-                      disabled={resolvingId === sos.id}
-                      className="operator-sos-banner__accept-btn"
-                    >
-                      <Check size={16} color="#FFFFFF" strokeWidth={2.5} aria-hidden="true" />
-                      <span>{resolvingId === sos.id ? 'Закрываем...' : 'Помощь пришла'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onNavigate?.('map')}
-                      className="operator-sos-banner__map-btn"
-                    >
-                      <MapPin size={18} color="#007DA5" strokeWidth={2} aria-hidden="true" />
-                      <span>На карте</span>
-                    </button>
-                  </div>
+            <div className="operator-sos-section" ref={sosSectionRef} id="operator-sos">
+              <div className="operator-section-header">
+                <h2 className="operator-section-header__title">
+                  Активные SOS{sosSignals.length > 0 ? ` · ${sosSignals.length}` : ''}
+                </h2>
+              </div>
+              {sosSignals.length === 0 ? (
+                <section className="operator-sos-empty" aria-label="Активные сигналы SOS">
+                  <Siren size={20} color="#6B7A89" strokeWidth={2} aria-hidden="true" />
+                  <span>Активных сигналов SOS нет</span>
                 </section>
-              ))
-            )}
+              ) : (
+                sosSignals.map((sos) => (
+                  <section
+                    key={sos.id}
+                    className="operator-sos-banner"
+                    aria-label={`Активный сигнал SOS: ${sos.userName}`}
+                  >
+                    <div className="operator-sos-banner__icon">
+                      <Siren size={22} color="#FFFFFF" strokeWidth={2.2} aria-hidden="true" />
+                    </div>
+
+                    <div className="operator-sos-banner__info">
+                      <span className="operator-sos-banner__title">
+                        Активный SOS · {sos.userName}
+                      </span>
+                      <span className="operator-sos-banner__sub">
+                        {sos.address} ·{' '}
+                        <a href={`tel:${sos.phone}`} className="operator-sos-banner__phone">
+                          {sos.displayPhone}
+                        </a>{' '}
+                        · {elapsedLabel(now - sos.startedAt)} · получили контактов:{' '}
+                        {sos.notifiedCount}
+                      </span>
+                    </div>
+
+                    <div className="operator-sos-banner__actions">
+                      <button
+                        type="button"
+                        onClick={() => handleResolve(sos)}
+                        disabled={resolvingId === sos.id}
+                        className="operator-sos-banner__accept-btn"
+                      >
+                        <Check size={16} color="#FFFFFF" strokeWidth={2.5} aria-hidden="true" />
+                        <span>{resolvingId === sos.id ? 'Закрываем...' : 'Помощь пришла'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onShowOnMap?.({
+                            type: 'sos',
+                            id: sos.id,
+                            lat: sos.lat,
+                            lng: sos.lng,
+                          })
+                        }
+                        disabled={typeof sos.lat !== 'number'}
+                        title={
+                          typeof sos.lat === 'number'
+                            ? 'Показать место сигнала на карте'
+                            : 'У сигнала нет координат — только адрес'
+                        }
+                        className="operator-sos-banner__map-btn"
+                      >
+                        <MapPin size={18} color="#007DA5" strokeWidth={2} aria-hidden="true" />
+                        <span>{typeof sos.lat === 'number' ? 'На карте' : 'Нет координат'}</span>
+                      </button>
+                    </div>
+                  </section>
+                ))
+              )}
+            </div>
 
             {/* Заголовок секции «Обращения жителей» */}
             <div className="operator-section-header" data-node-id="3149:2132">
@@ -686,20 +701,28 @@ export default function OperatorPanelPage({
               </div>
 
               {visibleIncidents.map((inc) => {
-                const typeCfg = INCIDENT_TYPE_ICONS[inc.icon] || INCIDENT_TYPE_ICONS.car;
+                const typeCfg =
+                  INCIDENT_TYPE_ICONS[inc.icon] || INCIDENT_TYPE_ICONS['more-horizontal'];
                 const TypeIcon = typeCfg.Icon;
-                const badgeCfg = STATUS_BADGE_STYLES[inc.status] || STATUS_BADGE_STYLES.new;
 
                 return (
                   <div
                     key={inc.id}
                     className={`operator-table-row ${
                       inc.status === 'hidden' ? 'operator-table-row--hidden' : ''
-                    }`}
+                    } ${flashId === inc.id ? 'operator-table-row--flash' : ''}`}
+                    onAnimationEnd={(e) => {
+                      if (e.animationName === 'operator-row-flash') setFlashId(null);
+                    }}
                   >
-                    <div className="operator-col operator-col--id operator-cell-id">{inc.id}</div>
+                    <div data-label="ID" className="operator-col operator-col--id operator-cell-id">
+                      {inc.id}
+                    </div>
 
-                    <div className="operator-col operator-col--type operator-cell-type">
+                    <div
+                      data-label="Тип"
+                      className="operator-col operator-col--type operator-cell-type"
+                    >
                       <TypeIcon
                         size={18}
                         color={typeCfg.color}
@@ -709,31 +732,34 @@ export default function OperatorPanelPage({
                       <span>{inc.typeLabel}</span>
                     </div>
 
-                    <div className="operator-col operator-col--address operator-cell-text">
+                    <div
+                      data-label="Адрес"
+                      className="operator-col operator-col--address operator-cell-text"
+                    >
                       {inc.address}
                     </div>
 
-                    <div className="operator-col operator-col--time operator-cell-muted">
+                    <div
+                      data-label="Время"
+                      className="operator-col operator-col--time operator-cell-muted"
+                    >
                       {inc.time}
                     </div>
 
-                    <div className="operator-col operator-col--status">
-                      <select
-                        className="operator-status-select"
+                    <div data-label="Статус" className="operator-col operator-col--status">
+                      <StatusMenu
                         value={inc.status}
-                        onChange={(e) => handleStatusChange(inc, e.target.value)}
-                        aria-label={`Статус обращения ${inc.id}`}
-                        style={{ backgroundColor: badgeCfg.bg, color: badgeCfg.color }}
-                      >
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {STATUS_BADGE_STYLES[status].label}
-                          </option>
-                        ))}
-                      </select>
+                        options={STATUS_OPTIONS}
+                        onChange={(next) => handleStatusChange(inc, next)}
+                        ariaLabel={`Статус обращения ${inc.id}`}
+                        disabled={savingStatusId === inc.id}
+                      />
                     </div>
 
-                    <div className="operator-col operator-col--service operator-cell-service">
+                    <div
+                      data-label="Заметка"
+                      className="operator-col operator-col--service operator-cell-service"
+                    >
                       <NoteCell
                         incident={inc}
                         onSave={(note) => onUpdateIncidentStatus?.(inc.id, inc.status, note)}
@@ -822,66 +848,17 @@ export default function OperatorPanelPage({
               </button>
             </div>
 
-            <div
-              className="operator-mini-map"
-              onClick={() => onNavigate?.('map')}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') onNavigate?.('map');
-              }}
-              aria-label="Открыть полную карту обращений"
-              data-node-id="3149:2137"
-            >
-              <div className="operator-mini-map__grid" aria-hidden="true">
-                {Array.from({ length: 16 }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={`operator-mini-map__block ${
-                      idx === 4 || idx === 11 ? 'operator-mini-map__block--park' : ''
-                    }`}
-                  />
-                ))}
-              </div>
-
-              <div className="operator-mini-map__road-h" aria-hidden="true" />
-              <div className="operator-mini-map__road-v" aria-hidden="true" />
-
-              {/* Опасная зона */}
-              <div className="operator-mini-map__danger-zone" data-node-id="3149:2165" />
-
-              {/* Пины */}
-              <div
-                className="operator-mini-pin operator-mini-pin--danger"
-                style={{ left: '44%', top: '48%' }}
-                data-node-id="3149:2171"
+            <div className="operator-mini-map">
+              <Suspense
+                fallback={<div className="operator-mini-map__loading">Загружаем карту…</div>}
               >
-                <Siren size={16} color="#FFFFFF" strokeWidth={2.2} />
-              </div>
-
-              <div
-                className="operator-mini-pin operator-mini-pin--fire"
-                style={{ left: '68%', top: '24%' }}
-                data-node-id="3149:2175"
-              >
-                <Flame size={16} color="#FFFFFF" strokeWidth={2.2} />
-              </div>
-
-              <div
-                className="operator-mini-pin operator-mini-pin--police"
-                style={{ left: '24%', top: '73%' }}
-                data-node-id="3149:2179"
-              >
-                <Shield size={16} color="#FFFFFF" strokeWidth={2.2} />
-              </div>
-
-              <div
-                className="operator-mini-pin operator-mini-pin--hospital"
-                style={{ left: '78%', top: '68%' }}
-                data-node-id="3149:2184"
-              >
-                <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
-              </div>
+                <CityMap
+                  center={mapCenter}
+                  markers={miniMapMarkers}
+                  onSelect={handleMiniMapSelect}
+                  ariaLabel="Карта обращений и сигналов SOS"
+                />
+              </Suspense>
             </div>
 
             <div className="operator-map-legend" data-node-id="3149:2194">
@@ -897,10 +874,16 @@ export default function OperatorPanelPage({
                 <span className="operator-map-legend__dot" style={{ backgroundColor: '#008F82' }} />
                 <span>Закрытые</span>
               </div>
+              <div className="operator-map-legend__item">
+                <span className="operator-map-legend__dot operator-map-legend__dot--sos" />
+                <span>SOS</span>
+              </div>
             </div>
           </aside>
         </div>
       </main>
+
+      <MobileTabbar />
 
       {/* Модальное окно создания городского оповещения */}
       <dialog

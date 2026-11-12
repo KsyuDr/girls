@@ -1,12 +1,6 @@
 import { useRef, useState } from 'react';
 import {
-  ShieldCheck,
-  Home,
-  Map,
   Bell,
-  TriangleAlert,
-  Users,
-  BookOpen,
   Siren,
   Plus,
   MessageCircle,
@@ -16,17 +10,14 @@ import {
   ChevronLeft,
   Trash2,
   X,
-  LayoutDashboard,
 } from 'lucide-react';
+import { AppSidebar, AccountMenu, MobileTabbar } from '../components/AppShell';
 import './ContactsPage.css';
 
 export default function ContactsPage({
-  user,
   contacts = [],
   maxContacts = 5,
-  canModerate = false,
   onNavigate,
-  onTriggerSos,
   onToggleContactSos,
   onAddContact,
   onDeleteContact,
@@ -84,99 +75,12 @@ export default function ContactsPage({
     }
   };
 
-  const navItems = [
-    { id: 'home', label: 'Главная', icon: Home },
-    { id: 'alerts', label: 'Оповещения', icon: Bell },
-    { id: 'map', label: 'Карта', icon: Map },
-    { id: 'report', label: 'Сообщить', icon: TriangleAlert },
-    { id: 'contacts', label: 'Контакты', icon: Users },
-    { id: 'guides', label: 'Службы и памятки', icon: BookOpen },
-    ...(canModerate ? [{ id: 'operator', label: 'Панель модератора', icon: LayoutDashboard }] : []),
-  ];
-
-  const handleNavClick = (id) => {
-    onNavigate?.(id);
-  };
-
   return (
     <div className="contacts-layout" data-node-id="3149:749" onClick={() => setOpenMenuId(null)}>
-      {/* Боковое меню (Десктоп MacBook Pro 14") */}
-      <aside className="sos-sidebar" data-node-id="3149:821">
-        <div className="sos-sidebar__top" data-node-id="3149:801">
-          <div className="sos-sidebar__logo" data-node-id="3149:759">
-            <div className="sos-sidebar__logo-icon" data-node-id="3149:755">
-              <ShieldCheck size={22} color="#003C54" strokeWidth={2.2} aria-hidden="true" />
-            </div>
-            <div className="sos-sidebar__logo-text" data-node-id="3149:758">
-              <span className="sos-sidebar__brand" data-node-id="3149:756">
-                Безопасный город
-              </span>
-              <span className="sos-sidebar__city" data-node-id="3149:757">
-                {user?.city || 'Москва'}
-              </span>
-            </div>
-          </div>
-
-          <nav className="sos-sidebar__nav" aria-label="Основная навигация" data-node-id="3149:800">
-            {navItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = item.id === 'contacts';
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleNavClick(item.id)}
-                  className={`sos-sidebar__nav-item ${
-                    isActive ? 'sos-sidebar__nav-item--active' : ''
-                  }`}
-                >
-                  <IconComponent
-                    size={20}
-                    color={isActive ? '#00C9B7' : 'rgba(255, 255, 255, 0.75)'}
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="sos-sidebar__bottom" data-node-id="3149:820">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="sos-sidebar__sos-btn"
-            data-node-id="3149:819"
-          >
-            <Siren size={20} color="#FFFFFF" strokeWidth={2} aria-hidden="true" />
-            <span>Экстренный вызов SOS</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate?.('register')}
-            className="sos-sidebar__profile"
-            data-node-id="3149:807"
-          >
-            <div className="sos-sidebar__avatar" data-node-id="3149:803">
-              <span>{user?.initials || 'ПА'}</span>
-            </div>
-            <div className="sos-sidebar__profile-info" data-node-id="3149:806">
-              <span className="sos-sidebar__profile-name" data-node-id="3149:804">
-                {user?.mobileName || 'Полина Исупова'}
-              </span>
-              <span className="sos-sidebar__profile-phone" data-node-id="3149:805">
-                {user?.displayPhone || '+7 912 345-67-89'}
-              </span>
-            </div>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* MAIN CONTENT */}
-      <div className="contacts-main" data-node-id="3149:750">
+      <div className="contacts-main page-enter" data-node-id="3149:750">
         {/* DESKTOP TOPBAR */}
         <header className="contacts-topbar" data-node-id="3149:666">
           <div className="contacts-topbar__titles" data-node-id="3149:664">
@@ -213,15 +117,7 @@ export default function ContactsPage({
               <span className="contacts-topbar__bell-dot" aria-hidden="true" />
             </button>
 
-            <button
-              type="button"
-              className="contacts-topbar__avatar"
-              onClick={() => onNavigate?.('register')}
-              title="Профиль пользователя"
-              data-node-id="3149:661"
-            >
-              {user?.initials || 'ПА'}
-            </button>
+            <AccountMenu className="contacts-topbar__avatar" />
           </div>
         </header>
 
@@ -457,39 +353,7 @@ export default function ContactsPage({
         </main>
       </div>
 
-      {/* Нижняя панель навигации (Мобильная версия iPhone 16) */}
-      <nav className="home-tabbar" aria-label="Мобильная навигация" data-node-id="3149:2647">
-        <button type="button" onClick={() => onNavigate?.('home')} className="home-tabbar__item">
-          <Home size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Главная</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('map')} className="home-tabbar__item">
-          <Map size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Карта</span>
-        </button>
-
-        <div className="home-tabbar__sos-slot">
-          <button
-            type="button"
-            onClick={() => onTriggerSos?.()}
-            className="home-tabbar__sos-btn"
-            data-node-id="3149:2674"
-          >
-            <span>SOS</span>
-          </button>
-        </div>
-
-        <button type="button" onClick={() => onNavigate?.('alerts')} className="home-tabbar__item">
-          <Bell size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Лента</span>
-        </button>
-
-        <button type="button" onClick={() => onNavigate?.('guides')} className="home-tabbar__item">
-          <BookOpen size={24} strokeWidth={2} aria-hidden="true" />
-          <span>Помощь</span>
-        </button>
-      </nav>
+      <MobileTabbar />
 
       {/* ADD CONTACT MODAL DIALOG */}
       <dialog
