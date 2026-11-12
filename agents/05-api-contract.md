@@ -130,6 +130,7 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 | `POST /sos/active/cancel` | вход | — | отменить текущий активный сигнал |
 | `GET /sos/{id}` | вход | — | свой сигнал, в том числе завершённый; чужой — 404 |
 | `POST /sos/{id}/location` | вход | `{lat, lng, address?, accuracyMeters?}` | сигнал; 409, если он уже завершён (новый не создаётся) |
+| `GET /sos/incoming` | вход | — | активные SOS, где мой номер — экстренный контакт отправителя: `[{id, status, lat, lng, address, accuracyMeters, startedAt, sender: {id, name, phone}, relation}]` |
 
 `sos` = `{id, status, lat, lng, address, accuracyMeters, startedAt, endedAt, notifiedContacts}`,
 `notifiedContacts[]` = `{id, contactId, name, relation, phone, channel, status}`, `status` доставки —
@@ -165,7 +166,7 @@ responsesCount, myResponse, responses, distanceMeters, createdAt, updatedAt, clo
 
 | Метод и путь | Доступ | Ответ |
 |---|---|---|
-| `GET /dashboard` | все (с токеном — плюс личные данные) | `{isAuthenticated, user, reference, alerts, places, incidents, contacts, activeSos, moderation}` |
+| `GET /dashboard` | все (с токеном — плюс личные данные) | `{isAuthenticated, user, reference, alerts, places, incidents, contacts, activeSos, incomingSos, moderation}` |
 
 `user` и `activeSos` — `null` у гостя, `contacts` — пустой список; `moderation` = `{incidents, activeSos, stats, alerts}`
 (`alerts` — все оповещения, включая снятые с публикации)
