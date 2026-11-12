@@ -62,3 +62,17 @@ class SosOut(CamelModel):
 
 class ModerationSosOut(SosOut):
     user: PersonOut  # модератору — кто подал сигнал, с телефоном
+
+
+class IncomingSosOut(CamelModel):
+    """Активный SOS, который пришёл мне: мой номер есть в экстренных контактах отправителя."""
+
+    id: int
+    status: SosStatus
+    lat: float | None
+    lng: float | None
+    address: str | None
+    accuracy_meters: float | None
+    started_at: datetime
+    sender: PersonOut  # полное имя и телефон: близкому нужно перезвонить
+    relation: str  # кем я записан у отправителя («Мама»)

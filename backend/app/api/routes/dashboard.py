@@ -39,6 +39,7 @@ async def dashboard(session: SessionDep, viewer: OptionalUser) -> DashboardOut:
 
     contacts: list[ContactOut] = []
     active_sos = None
+    incoming_sos = []
     moderation = None
     if viewer is not None:
         contacts = [
@@ -47,6 +48,7 @@ async def dashboard(session: SessionDep, viewer: OptionalUser) -> DashboardOut:
         ]
         sos = await sos_service.get_active(session, viewer.id)
         active_sos = sos_service.sos_out(sos) if sos else None
+        incoming_sos = await sos_service.list_incoming(session, viewer)
         if viewer.is_moderator:
             all_incidents = await incidents_service.list_incidents(
                 session, viewer, include_hidden=True, limit=200
@@ -75,5 +77,6 @@ async def dashboard(session: SessionDep, viewer: OptionalUser) -> DashboardOut:
         incidents=[incidents_service.incident_out(i, viewer, d) for i, d in incidents],
         contacts=contacts,
         active_sos=active_sos,
+        incoming_sos=incoming_sos,
         moderation=moderation,
     )

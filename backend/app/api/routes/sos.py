@@ -2,7 +2,7 @@ from fastapi import APIRouter, Response, status
 
 from app.api.deps import CurrentUser
 from app.db.session import SessionDep
-from app.schemas.sos import SosCreateIn, SosLocationIn, SosOut
+from app.schemas.sos import IncomingSosOut, SosCreateIn, SosLocationIn, SosOut
 from app.services import sos as service
 
 router = APIRouter(prefix="/sos", tags=["sos"])
@@ -28,6 +28,15 @@ async def send_sos(
 async def get_active(user: CurrentUser, session: SessionDep) -> SosOut | None:
     sos = await service.get_active(session, user.id)
     return service.sos_out(sos) if sos else None
+
+
+@router.get(
+    "/incoming",
+    response_model=list[IncomingSosOut],
+    summary="Активные SOS, которые пришли мне как экстренному контакту",
+)
+async def get_incoming(user: CurrentUser, session: SessionDep) -> list[IncomingSosOut]:
+    return await service.list_incoming(session, user)
 
 
 # Фронт вызывает /sos/active/cancel, если не знает id — поэтому этот путь объявлен раньше

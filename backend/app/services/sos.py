@@ -16,7 +16,14 @@ from app.models.sos import (
     SOS_CANCELLED,
     SOS_RESOLVED,
 )
-from app.schemas.sos import DeliveryOut, ModerationSosOut, SosCreateIn, SosLocationIn, SosOut
+from app.schemas.sos import (
+    DeliveryOut,
+    IncomingSosOut,
+    ModerationSosOut,
+    SosCreateIn,
+    SosLocationIn,
+    SosOut,
+)
 from app.services import sms
 from app.services.incidents import person_out
 
@@ -104,6 +111,46 @@ async def send_sos(session: AsyncSession, user: User, data: SosCreateIn) -> tupl
         delivery.status = DELIVERY_DELIVERED if ok else DELIVERY_FAILED
     await session.commit()
     return await get_sos(session, sos.id), True
+
+
+async def list_incoming(session: AsyncSession, user: User) -> list[IncomingSosOut]:
+    """Активные SOS, доставленные на номер пользователя (он — чей-то экстренный контакт).
+
+    Связь — по номеру из доставки, а не по контакту: контакт могли удалить после отправки,
+    а сигнал уже ушёл. Свои сигналы не показываем. Новые сверху.
+    """
+    rows = await session.execute(
+        select(SosSignal, SosDelivery.contact_relation)
+        .join(SosDelivery, SosDelivery.sos_id == SosSignal.id)
+        .where(
+            SosSignal.status == SOS_ACTIVE,
+            SosSignal.user_id != user.id,
+            SosDelivery.contact_phone == user.phone,
+            SosDelivery.status == DELIVERY_DELIVERED,
+        )
+        .options(selectinload(SosSignal.user))
+        .order_by(SosSignal.created_at.desc(), SosSignal.id.desc())
+    )
+    seen: set[int] = set()
+    result = []
+    for sos, relation in rows:
+        if sos.id in seen:
+            continue
+        seen.add(sos.id)
+        result.append(
+            IncomingSosOut(
+                id=sos.id,
+                status=sos.status,
+                lat=sos.lat,
+                lng=sos.lng,
+                address=sos.address,
+                accuracy_meters=sos.accuracy_m,
+                started_at=sos.created_at,
+                sender=person_out(sos.user, with_phone=True, full_name=True),
+                relation=relation,
+            )
+        )
+    return result
 
 
 async def get_own_sos(session: AsyncSession, user: User, sos_id: int) -> SosSignal:

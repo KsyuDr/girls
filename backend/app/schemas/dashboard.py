@@ -6,7 +6,7 @@ from app.schemas.incident import IncidentOut, ModerationIncidentOut
 from app.schemas.moderation import StatsOut
 from app.schemas.place import PlaceOut
 from app.schemas.reference import ReferenceOut
-from app.schemas.sos import ModerationSosOut, SosOut
+from app.schemas.sos import IncomingSosOut, ModerationSosOut, SosOut
 
 
 class ModerationDashboardOut(CamelModel):
@@ -31,4 +31,5 @@ class DashboardOut(CamelModel):
     incidents: list[IncidentOut]
     contacts: list[ContactOut]
     active_sos: SosOut | None
+    incoming_sos: list[IncomingSosOut]  # SOS близких, где я — экстренный контакт
     moderation: ModerationDashboardOut | None

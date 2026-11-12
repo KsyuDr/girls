@@ -345,3 +345,62 @@ async def test_get_own_signal_shows_how_it_ended(client: AsyncClient, login_as: 
     assert own.json()["status"] == "cancelled"
     assert (await client.get(url, headers=stranger)).status_code == 404
     assert (await client.get(url)).status_code == 401
+
+
+async def test_incoming_sos_visible_to_contact_by_phone(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    sender = await login_as("+79120000001", "Полина Исупова")
+    await add_contact(client, sender, "+79220000001")  # близкий с аккаунтом
+    await add_contact(client, sender, "+79220000002", receives_sos=False)
+    mom = await login_as("+79220000001", "Мария Исупова")
+    other = await login_as("+79220000002", "Иван Петров")
+
+    assert (await client.get("/api/sos/incoming", headers=mom)).json() == []
+    sent = (await client.post("/api/sos", headers=sender, json=WHERE)).json()
+
+    response = await client.get("/api/sos/incoming", headers=mom)
+    assert response.status_code == 200, response.text
+    [incoming] = response.json()
+    assert incoming["id"] == sent["id"]
+    assert incoming["status"] == "active"
+    assert (incoming["lat"], incoming["lng"]) == (55.7539, 37.6208)
+    assert incoming["address"] == "Красная площадь"
+    assert incoming["relation"] == "Мама"
+    assert incoming["sender"]["name"] == "Полина Исупова"
+    assert incoming["sender"]["phone"] == "+79120000001"
+    # Контакт без флага «получает SOS» сигнал не получил
+    assert (await client.get("/api/sos/incoming", headers=other)).json() == []
+    # Отправитель не видит свой сигнал как входящий
+    assert (await client.get("/api/sos/incoming", headers=sender)).json() == []
+
+    dashboard = (await client.get("/api/dashboard", headers=mom)).json()
+    assert [s["id"] for s in dashboard["incomingSos"]] == [sent["id"]]
+
+
+async def test_incoming_sos_disappears_after_cancel(client: AsyncClient, login_as: LoginAs) -> None:
+    sender = await login_as("+79120000001")
+    await add_contact(client, sender, "+79220000001")
+    mom = await login_as("+79220000001", "Мария Исупова")
+    await client.post("/api/sos", headers=sender, json=WHERE)
+
+    assert len((await client.get("/api/sos/incoming", headers=mom)).json()) == 1
+    assert (await client.post("/api/sos/active/cancel", headers=sender)).status_code == 200
+    assert (await client.get("/api/sos/incoming", headers=mom)).json() == []
+
+
+async def test_incoming_sos_survives_contact_deletion(
+    client: AsyncClient, login_as: LoginAs
+) -> None:
+    sender = await login_as("+79120000001")
+    contact = await add_contact(client, sender, "+79220000001")
+    mom = await login_as("+79220000001", "Мария Исупова")
+    await client.post("/api/sos", headers=sender, json=WHERE)
+    await client.delete(f"/api/contacts/{contact['id']}", headers=sender)
+
+    assert len((await client.get("/api/sos/incoming", headers=mom)).json()) == 1
+
+
+async def test_incoming_sos_requires_login(client: AsyncClient) -> None:
+    assert (await client.get("/api/sos/incoming")).status_code == 401
+    assert (await client.get("/api/dashboard")).json()["incomingSos"] == []
