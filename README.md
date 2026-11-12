@@ -10,6 +10,27 @@
 | [`frontend/`](frontend) | React + Vite (веб и мобильная вёрстка по макетам Figma) |
 | [`agents/`](agents) | решения, архитектура, API-контракт, план этапов |
 
+## Скриншоты
+
+Главная с кнопкой SOS (удерживать 3 секунды) и карта города с метками:
+
+![Главная](docs/screenshots/home.png)
+
+![Карта](docs/screenshots/map.jpg)
+
+Лента оповещений с картой района и панель модератора (обращения, SOS, карта обращений):
+
+![Оповещения](docs/screenshots/alerts.png)
+
+![Панель модератора](docs/screenshots/moderator.png)
+
+Мобильная версия: главная и подтверждение отправки SOS.
+
+<p>
+  <img src="docs/screenshots/mobile-home.png" alt="Главная на телефоне" width="300">
+  <img src="docs/screenshots/mobile-sos-confirm.png" alt="Подтверждение SOS на телефоне" width="300">
+</p>
+
 ## Быстрый старт
 ```bash
 docker compose up -d db
