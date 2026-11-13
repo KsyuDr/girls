@@ -2,11 +2,11 @@ from typing import Annotated
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, InputModel
 from app.schemas.incident import IncidentStatus
 
 
-class ModerationIncidentUpdateIn(CamelModel):
+class ModerationIncidentUpdateIn(InputModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     status: IncidentStatus

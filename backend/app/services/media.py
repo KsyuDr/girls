@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import hmac
 import io
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -29,13 +30,29 @@ def media_root() -> Path:
     return Path(get_settings().media_dir).resolve()
 
 
-def sign(file_path: str) -> str:
+# Срок ссылки на фото: модератор без роли теряет доступ к скрытым меткам не позже чем через сутки
+SIGNED_URL_HOURS = 24
+
+
+def _digest(file_path: str, expires: int) -> str:
     key = get_settings().jwt_secret.encode()
-    return hmac.new(key, f"media:{file_path}".encode(), hashlib.sha256).hexdigest()[:32]
+    message = f"media:{file_path}:{expires}".encode()
+    return hmac.new(key, message, hashlib.sha256).hexdigest()[:32]
+
+
+def sign(file_path: str, now: float | None = None) -> str:
+    """Подпись «срок.хеш». Срок округлён до часа: в течение часа ссылка та же и браузер
+    берёт фото из кэша, а не качает заново при каждом обновлении списка."""
+    hour = int(time.time() if now is None else now) // 3600
+    expires = (hour + 1 + SIGNED_URL_HOURS) * 3600
+    return f"{expires}.{_digest(file_path, expires)}"
 
 
 def check_signature(file_path: str, signature: str | None) -> bool:
-    return signature is not None and hmac.compare_digest(sign(file_path), signature)
+    expires, _, digest = (signature or "").partition(".")
+    if not expires.isdigit() or int(expires) < time.time():
+        return False
+    return hmac.compare_digest(_digest(file_path, int(expires)), digest)
 
 
 def media_url(file_path: str, *, signed: bool = False) -> str:

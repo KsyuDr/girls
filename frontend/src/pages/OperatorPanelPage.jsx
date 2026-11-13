@@ -339,7 +339,7 @@ export default function OperatorPanelPage({
   const handleResolve = async (sos) => {
     const ok = await confirm({
       title: 'Помощь пришла?',
-      message: `Сигнал SOS от ${sos.userName} будет закрыт, а на экране у жителя появится «помощь пришла». Отменить это нельзя.`,
+      message: `Сигнал SOS (${sos.userName}) будет закрыт: у жителя на экране появится «помощь пришла», а его близким уйдёт сообщение об этом. Отменить это нельзя.`,
       confirmLabel: 'Да, помощь пришла',
       cancelLabel: 'Ещё нет',
       tone: 'success',
@@ -855,6 +855,7 @@ export default function OperatorPanelPage({
                 <CityMap
                   center={mapCenter}
                   markers={miniMapMarkers}
+                  autoFit
                   onSelect={handleMiniMapSelect}
                   ariaLabel="Карта обращений и сигналов SOS"
                 />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   adaptContact,
+  adaptIncomingSos,
   adaptDashboard,
   adaptModerationSos,
   adaptSos,
@@ -10,6 +11,7 @@ import {
   formatDistance,
   formatPhone,
   makeProjection,
+  mediaUrl,
   nearCenter,
   pickMapCenter,
   plural,
@@ -343,5 +345,36 @@ describe('adaptDashboard', () => {
     expect(result.isAuthenticated).toBe(false);
     expect(result.contacts).toEqual([]);
     expect(result.user.isModerator).toBe(false);
+  });
+});
+
+describe('ревью 2026-11-12', () => {
+  const incoming = {
+    id: 7,
+    status: 'resolved',
+    lat: null,
+    lng: null,
+    address: null,
+    accuracyMeters: null,
+    startedAt: '2026-11-12T10:00:00Z',
+    endedAt: '2026-11-12T10:05:00Z',
+    sender: { id: 1, name: 'Анна Проверкина', phone: '+79771239901' },
+    relation: 'Мама',
+  };
+
+  it('входящий SOS: завершённый сигнал помечен и несёт время отбоя', () => {
+    const sos = adaptIncomingSos(incoming);
+    expect(sos.isActive).toBe(false);
+    expect(sos.status).toBe('resolved');
+    expect(sos.endedAt).toBe(Date.parse('2026-11-12T10:05:00Z'));
+    expect(adaptIncomingSos({ ...incoming, status: 'active', endedAt: null }).isActive).toBe(true);
+  });
+
+  it('фото метки — полный адрес сервера без /api', () => {
+    expect(mediaUrl('/media/incidents/1/a.jpg')).toMatch(
+      /^https?:\/\/[^/]+\/media\/incidents\/1\/a\.jpg$/
+    );
+    expect(mediaUrl('/media/x.jpg')).not.toContain('/api/');
+    expect(mediaUrl('https://cdn.example/x.jpg')).toBe('https://cdn.example/x.jpg');
   });
 });

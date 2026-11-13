@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { Siren, Phone, MapPin, X } from 'lucide-react';
+import { Siren, Phone, MapPin, X, CircleCheck } from 'lucide-react';
 import { elapsedLabel } from '../services/adapters';
 import './IncomingSosBanner.css';
 
+// Чем закончился сигнал: близкий должен узнать, что всё хорошо, а не гадать, куда пропал баннер
+const FINISHED_TITLES = {
+  cancelled: (name) => `${name}: сигнал SOS отменён`,
+  resolved: (name) => `${name}: помощь пришла, сигнал SOS завершён`,
+};
+
 /**
  * SOS близкого человека: мой номер есть в его экстренных контактах.
- * Висит над любой страницей, пока сигнал активен. «Скрыть» убирает только этот сигнал
+ * Висит над любой страницей, пока сигнал активен. После завершения ещё час показывает
+ * спокойный отбой («отменён» или «помощь пришла»). «Скрыть» убирает только этот сигнал
  * и только до перезагрузки: новый сигнал покажется снова.
  */
 export default function IncomingSosBanner({ signals = [], onShowOnMap }) {
@@ -17,7 +24,10 @@ export default function IncomingSosBanner({ signals = [], onShowOnMap }) {
     return () => clearInterval(timer);
   }, []);
 
-  const visible = signals.filter((s) => !dismissed.has(s.id));
+  // Ключ скрытия с учётом статуса: скрытый активный сигнал покажется снова, когда завершится
+  const keyOf = (sos) => `${sos.id}:${sos.status}`;
+  const visible = signals.filter((s) => !dismissed.has(keyOf(s)));
+  const anyActive = visible.some((s) => s.isActive);
 
   // Высота баннера — в CSS-переменную: боковое меню и карта на весь экран её вычитают
   const rootRef = useRef(null);
@@ -42,17 +52,36 @@ export default function IncomingSosBanner({ signals = [], onShowOnMap }) {
   if (!hasVisible) return null;
 
   return (
-    <div ref={rootRef} className="incoming-sos" role="alert" aria-live="assertive">
+    <div
+      ref={rootRef}
+      className={`incoming-sos${anyActive ? '' : ' incoming-sos--calm'}`}
+      role={anyActive ? 'alert' : 'status'}
+      aria-live={anyActive ? 'assertive' : 'polite'}
+    >
       {visible.map((sos) => (
-        <section key={sos.id} className="incoming-sos__row" aria-label={`SOS от ${sos.senderName}`}>
+        <section
+          key={keyOf(sos)}
+          className={`incoming-sos__row${sos.isActive ? '' : ' incoming-sos__row--calm'}`}
+          aria-label={`SOS от ${sos.senderName}`}
+        >
           <div className="incoming-sos__icon" aria-hidden="true">
-            <Siren size={22} strokeWidth={2.2} />
+            {sos.isActive ? (
+              <Siren size={22} strokeWidth={2.2} />
+            ) : (
+              <CircleCheck size={22} strokeWidth={2.2} />
+            )}
           </div>
 
           <div className="incoming-sos__text">
-            <span className="incoming-sos__title">{sos.senderName} просит помощи — сигнал SOS</span>
+            <span className="incoming-sos__title">
+              {sos.isActive
+                ? `${sos.senderName} просит помощи — сигнал SOS`
+                : (FINISHED_TITLES[sos.status] || FINISHED_TITLES.cancelled)(sos.senderName)}
+            </span>
             <span className="incoming-sos__meta">
-              {sos.address} · {elapsedLabel(now - sos.startedAt)} · вы записаны как «{sos.relation}»
+              {sos.isActive
+                ? `${sos.address} · ${elapsedLabel(now - sos.startedAt)} · вы записаны как «${sos.relation}»`
+                : `Сигнал завершён ${elapsedLabel(now - (sos.endedAt || now))}`}
             </span>
           </div>
 
@@ -61,7 +90,7 @@ export default function IncomingSosBanner({ signals = [], onShowOnMap }) {
               <Phone size={16} strokeWidth={2.2} aria-hidden="true" />
               <span>Позвонить</span>
             </a>
-            {sos.hasPoint && (
+            {sos.isActive && sos.hasPoint && (
               <button
                 type="button"
                 className="incoming-sos__btn"
@@ -84,7 +113,7 @@ export default function IncomingSosBanner({ signals = [], onShowOnMap }) {
             <button
               type="button"
               className="incoming-sos__close"
-              onClick={() => setDismissed((prev) => new Set(prev).add(sos.id))}
+              onClick={() => setDismissed((prev) => new Set(prev).add(keyOf(sos)))}
               aria-label="Скрыть уведомление"
               title="Скрыть уведомление"
             >

@@ -1,23 +1,25 @@
 from datetime import datetime
 from typing import Annotated, Literal, Self
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, model_validator
 
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, InputModel
 from app.schemas.incident import PersonOut
 
 SosStatus = Literal["active", "cancelled", "resolved"]
 DeliveryStatus = Literal["sending", "delivered", "failed"]
+# Пустой адрес (или из одних пробелов) — то же, что его отсутствие
+Address = Annotated[str | None, Field(max_length=200), AfterValidator(lambda v: v or None)]
 
 
-class SosCreateIn(CamelModel):
+class SosCreateIn(InputModel):
     """Всё необязательно: без координат берём последнее известное место пользователя."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
     lat: Annotated[float, Field(ge=-90, le=90)] | None = None
     lng: Annotated[float, Field(ge=-180, le=180)] | None = None
-    address: Annotated[str, Field(max_length=200)] | None = None
+    address: Address = None
     accuracy_meters: Annotated[float, Field(ge=0, le=100_000)] | None = None
 
     @model_validator(mode="after")
@@ -27,14 +29,14 @@ class SosCreateIn(CamelModel):
         return self
 
 
-class SosLocationIn(CamelModel):
+class SosLocationIn(InputModel):
     """Досылка координат браузера к уже отправленному сигналу."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
     lat: Annotated[float, Field(ge=-90, le=90)]
     lng: Annotated[float, Field(ge=-180, le=180)]
-    address: Annotated[str, Field(max_length=200)] | None = None
+    address: Address = None
     accuracy_meters: Annotated[float, Field(ge=0, le=100_000)] | None = None
 
 
@@ -65,7 +67,10 @@ class ModerationSosOut(SosOut):
 
 
 class IncomingSosOut(CamelModel):
-    """Активный SOS, который пришёл мне: мой номер есть в экстренных контактах отправителя."""
+    """SOS, который пришёл мне: мой номер есть в экстренных контактах отправителя.
+
+    Активный или завершённый за последний час (status cancelled/resolved, есть endedAt).
+    """
 
     id: int
     status: SosStatus
@@ -74,5 +79,6 @@ class IncomingSosOut(CamelModel):
     address: str | None
     accuracy_meters: float | None
     started_at: datetime
+    ended_at: datetime | None
     sender: PersonOut  # полное имя и телефон: близкому нужно перезвонить
     relation: str  # кем я записан у отправителя («Мама»)

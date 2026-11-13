@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     auth_codes_per_ip_per_hour: int = 30
     auth_failed_attempts_per_hour: int = 10  # неверных кодов на номер за час, по всем кодам
 
+    # Против SMS-бомбинга через SOS: сигнал создаётся всегда, но SMS близким — в пределах лимитов
+    sos_with_sms_per_hour: int = 5  # сигналов с рассылкой SMS в час на пользователя
+    sos_sms_numbers_per_day: int = 10  # разных номеров, получивших SOS, за сутки
+    incidents_per_hour: int = 10  # новых меток в час на пользователя
+
     # Куда складываем загруженные фото
     media_dir: str = "media"
     # Предел тела запроса (4 фото по 5 МБ + запас); дублируйте его на прокси

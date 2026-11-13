@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Response, status
 
-from app.api.deps import CurrentUser
+from app.api.deps import CurrentUser, Id
 from app.db.session import SessionDep
 from app.schemas.contact import ContactCreateIn, ContactOut, ContactUpdateIn
 from app.services import contacts as contacts_service
@@ -33,13 +33,13 @@ async def create_contact(
     summary="Изменить контакт, в том числе флаг «получает SOS»",
 )
 async def update_contact(
-    contact_id: int, data: ContactUpdateIn, user: CurrentUser, session: SessionDep
+    contact_id: Id, data: ContactUpdateIn, user: CurrentUser, session: SessionDep
 ) -> ContactOut:
     contact = await contacts_service.update_contact(session, user, contact_id, data)
     return ContactOut.model_validate(contact)
 
 
 @router.delete("/{contact_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить контакт")
-async def delete_contact(contact_id: int, user: CurrentUser, session: SessionDep) -> Response:
+async def delete_contact(contact_id: Id, user: CurrentUser, session: SessionDep) -> Response:
     await contacts_service.delete_contact(session, user, contact_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

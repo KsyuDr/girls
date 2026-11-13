@@ -1,7 +1,7 @@
 """Метки жителей: создание, выборка с фильтрами и радиусом, фото, отклики «Помогу»."""
 
 from collections.abc import Iterable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from math import cos, radians
 
 from fastapi import UploadFile
@@ -11,7 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
+from app.core.config import get_settings
+from app.core.errors import (
+    BadRequestError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    TooManyRequestsError,
+)
 from app.core.geo import EARTH_RADIUS_M, distance_meters, in_service_area
 from app.models import Incident, IncidentPhoto, IncidentResponse, User
 from app.models.incident import (
@@ -139,6 +146,7 @@ async def create_incident(session: AsyncSession, user: User, data: IncidentCreat
             "Место метки за пределами России — проверьте точку на карте или геолокацию"
         )
 
+    await _check_incident_limit(session, user.id)
     incident = Incident(
         author_id=user.id,
         type=data.type,
@@ -151,6 +159,24 @@ async def create_incident(session: AsyncSession, user: User, data: IncidentCreat
     session.add(incident)
     await session.commit()
     return await get_incident(session, incident.id)
+
+
+async def _check_incident_limit(session: AsyncSession, user_id: int) -> None:
+    """Не больше N новых меток в час: строка пользователя заблокирована до коммита,
+    поэтому параллельные запросы лимит не обойдут."""
+    await session.execute(select(User.id).where(User.id == user_id).with_for_update())
+    created = await session.scalar(
+        select(func.count())
+        .select_from(Incident)
+        .where(
+            Incident.author_id == user_id,
+            Incident.created_at >= func.clock_timestamp() - timedelta(hours=1),
+        )
+    )
+    if (created or 0) >= get_settings().incidents_per_hour:
+        raise TooManyRequestsError(
+            "Слишком много меток за час — попробуйте позже", retry_after=3600
+        )
 
 
 async def update_incident(

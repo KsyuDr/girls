@@ -2,7 +2,8 @@
 
 import re
 
-_NON_DIGITS = re.compile(r"\D")
+# Только ASCII-цифры: \D в Python юникодный и пропустил бы «９» и «٩» как цифры
+_NON_DIGITS = re.compile(r"[^0-9]")
 
 
 def normalize_phone(raw: str) -> str:
@@ -10,6 +11,9 @@ def normalize_phone(raw: str) -> str:
 
     Бросает ValueError, если это не российский мобильный/городской номер из 11 цифр.
     """
+    if any(ch.isdigit() and not ch.isascii() for ch in raw):
+        # «９» или «٩» — не та же цифра: иначе один номер записывается по-разному
+        raise ValueError("Номер телефона: используйте обычные цифры 0–9")
     digits = _NON_DIGITS.sub("", raw)
     if len(digits) == 10:
         digits = "7" + digits

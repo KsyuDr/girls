@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Path
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.errors import ForbiddenError, UnauthorizedError
@@ -52,3 +52,7 @@ async def get_moderator(user: Annotated[User, Depends(get_current_user)]) -> Use
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 ModeratorUser = Annotated[User, Depends(get_moderator)]
+
+# id в пути: PostgreSQL integer (int4). Больше 2^31−1 asyncpg не передаст в запрос — было бы 500
+MAX_ID = 2**31 - 1
+Id = Annotated[int, Path(le=MAX_ID)]

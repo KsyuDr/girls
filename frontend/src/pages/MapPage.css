@@ -428,6 +428,40 @@
   color: var(--color-white);
 }
 
+.map-card__description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.map-card__photos {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.map-card__photos a {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.map-card__photos img {
+  display: block;
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  background-color: var(--color-bg);
+}
+
 .map-card__actions {
   display: flex;
   flex-wrap: wrap;

@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, ConfigDict, Field
 
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, InputModel
 
 AlertLevel = Literal["critical", "warning", "info"]
 Title = Annotated[str, Field(min_length=3, max_length=120)]
@@ -24,7 +24,7 @@ Checklist = Annotated[
 ]
 
 
-class _AlertIn(CamelModel):
+class _AlertIn(InputModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
 

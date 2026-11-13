@@ -35,3 +35,8 @@ async def send_sos(phone: str, from_user_id: int, lat: float | None, lng: float 
 
 async def send_sos_cancelled(phone: str, from_user_id: int) -> None:
     logger.warning("[SMS MOCK] %s: SOS from user #%s cancelled", phone, from_user_id)
+
+
+async def send_sos_resolved(phone: str, from_user_id: int) -> None:
+    """Модератор отметил, что помощь пришла: близкий должен знать, что всё хорошо."""
+    logger.warning("[SMS MOCK] %s: SOS from user #%s resolved, help arrived", phone, from_user_id)

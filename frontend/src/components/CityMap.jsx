@@ -54,12 +54,30 @@ function isPoint(p) {
   return p && typeof p.lat === 'number' && typeof p.lng === 'number';
 }
 
+// Отступ при подгонке больше половины маркера (40 px): точки у края не обрезаются
+const FIT_PADDING = [48, 48];
+
+/** Подогнать масштаб под точки; одна точка — просто в центр. */
+function fitToPoints(map, points, maxZoom) {
+  if (points.length === 0) return;
+  if (points.length === 1) {
+    map.setView([points[0].lat, points[0].lng], Math.min(15, maxZoom));
+    return;
+  }
+  map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), {
+    padding: FIT_PADDING,
+    maxZoom,
+  });
+}
+
 /**
  * Настоящая карта города (Leaflet + OpenStreetMap).
  * markers — [{id, lat, lng, color, icon, label, kind: 'place' | 'sos'}];
  * flyTo — {lat, lng, zoom?, key} — перелететь при смене key;
  * fitKey — при смене подогнать масштаб под все маркеры;
- * interactive={false} — превью без перетаскивания и масштаба (не мешает прокрутке страницы).
+ * interactive={false} — превью без перетаскивания и масштаба (не мешает прокрутке страницы);
+ * autoFit — держать в кадре все маркеры: после изменения размера контейнера и при появлении
+ *   новых точек (мини-карта модератора, где данные приходят позже, чем создаётся карта).
  */
 export default function CityMap({
   center,
@@ -71,6 +89,7 @@ export default function CityMap({
   fitKey = null,
   zoomRequest = null,
   interactive = true,
+  autoFit = false,
   zoom = 12,
   ariaLabel = 'Карта города',
   className = '',
@@ -81,6 +100,7 @@ export default function CityMap({
   const userMarkerRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   const markersRef = useRef(markers);
+  const autoFitRef = useRef(autoFit);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -113,18 +133,17 @@ export default function CityMap({
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
-    // Карта в гибкой вёрстке: пересчитываем размер при изменении контейнера
-    const observer = new ResizeObserver(() => map.invalidateSize());
+    // Карта в гибкой вёрстке: пересчитываем размер при изменении контейнера. При первом
+    // показе размер ещё может быть нулевым — с autoFit подгоняем точки под настоящий размер.
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+      if (autoFitRef.current) fitToPoints(map, markersRef.current.filter(isPoint), 14);
+    });
     observer.observe(containerRef.current);
 
     // Подгоняем масштаб под точки при первом показе
     const points = markersRef.current.filter(isPoint);
-    if (points.length > 1) {
-      map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), {
-        padding: [40, 40],
-        maxZoom: 14,
-      });
-    }
+    if (points.length > 1) fitToPoints(map, points, 14);
 
     return () => {
       observer.disconnect();
@@ -206,17 +225,23 @@ export default function CityMap({
     if (!map || fitKey === null) return;
     const points = markersRef.current.filter(isPoint);
     if (isPoint(userPoint)) points.push(userPoint);
-    if (points.length === 0) return;
-    if (points.length === 1) {
-      map.setView([points[0].lat, points[0].lng], 15);
-      return;
-    }
-    map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), {
-      padding: [40, 40],
-      maxZoom: 15,
-    });
+    fitToPoints(map, points, 15);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- реагируем только на новый запрос
   }, [fitKey]);
+
+  // autoFit: набор точек изменился (а не просто пришло то же самое при обновлении раз в 20 с)
+  const pointsKey = autoFit
+    ? markers
+        .filter(isPoint)
+        .map((m) => `${m.id}@${m.lat},${m.lng}`)
+        .join('|')
+    : '';
+  useEffect(() => {
+    autoFitRef.current = autoFit;
+    const map = mapRef.current;
+    if (!map || !autoFit) return;
+    fitToPoints(map, markersRef.current.filter(isPoint), 14);
+  }, [autoFit, pointsKey]);
 
   return (
     <div

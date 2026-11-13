@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import ModeratorUser, OptionalUser
+from app.api.deps import Id, ModeratorUser, OptionalUser
 from app.core.errors import ForbiddenError
 from app.db.session import SessionDep
 from app.schemas.alert import AlertCreateIn, AlertLevel, AlertOut, AlertUpdateIn
@@ -37,7 +37,7 @@ async def list_alerts(
 
 
 @router.get("/{alert_id}", response_model=AlertOut, summary="Одно оповещение")
-async def get_alert(alert_id: int, session: SessionDep, viewer: OptionalUser) -> AlertOut:
+async def get_alert(alert_id: Id, session: SessionDep, viewer: OptionalUser) -> AlertOut:
     return AlertOut.model_validate(await service.get_alert(session, alert_id, viewer))
 
 
@@ -59,6 +59,6 @@ async def create_alert(
     summary="Изменить или снять с публикации (модератор)",
 )
 async def update_alert(
-    alert_id: int, data: AlertUpdateIn, moderator: ModeratorUser, session: SessionDep
+    alert_id: Id, data: AlertUpdateIn, moderator: ModeratorUser, session: SessionDep
 ) -> AlertOut:
     return AlertOut.model_validate(await service.update_alert(session, moderator, alert_id, data))

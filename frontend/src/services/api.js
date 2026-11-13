@@ -265,20 +265,13 @@ export async function registerUser(payload) {
       city: payload.city,
       geolocationEnabled: Boolean(payload.geolocationEnabled),
     };
-    try {
-      return await request('/auth/register', {
-        method: 'POST',
-        body,
-        fallback: 'Ошибка при регистрации пользователя',
-      });
-    } catch (error) {
-      if (error.status !== 409) throw error;
-      return request('/auth/login', {
-        method: 'POST',
-        body: { phone: payload.phone },
-        fallback: 'Не удалось отправить код',
-      });
-    }
+    // 409 («номер уже зарегистрирован») не превращаем во вход молча: введённое имя
+    // отбросилось бы. RegisterPage покажет ошибку и предложит войти.
+    return request('/auth/register', {
+      method: 'POST',
+      body,
+      fallback: 'Ошибка при регистрации пользователя',
+    });
   }
 
   await new Promise((resolve) => setTimeout(resolve, 200));

@@ -49,9 +49,9 @@ export default function RegisterPage({
     return () => clearTimeout(timer);
   }, [resendIn]);
 
-  // Запрос кода: вход — по номеру, регистрация — той же анкетой (на 409 api.js сам сделает вход)
-  const requestCode = (targetPhone) =>
-    mode === 'login'
+  // Запрос кода: вход — по номеру, регистрация — анкетой
+  const requestCode = (targetPhone, asMode = mode) =>
+    asMode === 'login'
       ? loginUser(targetPhone)
       : registerUser({ name, phone: targetPhone, city, geolocationEnabled });
 
@@ -137,9 +137,15 @@ export default function RegisterPage({
       return;
     }
 
+    await sendCode(mode);
+  };
+
+  // asMode — 'login', когда номер уже зарегистрирован и человек согласился войти
+  const sendCode = async (asMode) => {
     setIsSubmitting(true);
     try {
-      const result = await requestCode(phone);
+      const result = await requestCode(phone, asMode);
+      if (asMode !== mode) setMode(asMode);
       if (result.user) {
         onSuccess?.(result.user);
       } else {
@@ -151,7 +157,14 @@ export default function RegisterPage({
         setStep('code');
       }
     } catch (error) {
-      setErrors({ form: error.message });
+      if (error?.status === 409 && asMode === 'register') {
+        setErrors({
+          form: 'Этот номер уже зарегистрирован. Войдите по нему — имя и город в аккаунте останутся прежними.',
+          formAction: 'login',
+        });
+      } else {
+        setErrors({ form: error.message });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -543,6 +556,19 @@ export default function RegisterPage({
           {errors.form && (
             <span className="reg-field-error" role="alert">
               {errors.form}
+              {errors.formAction === 'login' && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="reg-login-row__link"
+                    disabled={isSubmitting}
+                    onClick={() => sendCode('login')}
+                  >
+                    Войти с этим номером
+                  </button>
+                </>
+              )}
             </span>
           )}
 

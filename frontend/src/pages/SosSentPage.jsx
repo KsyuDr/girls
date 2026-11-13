@@ -48,6 +48,8 @@ export default function SosSentPage({
   const recipients = sosSession?.notifiedContacts ?? [];
   const mobileSosContacts = recipients.slice(0, 2);
   const nobodyNotified = recipients.length === 0;
+  // Отбой получат только те, кому SOS действительно доставлен
+  const deliveredCount = recipients.filter((c) => c.sosDeliveryStatus === 'delivered').length;
   // Место неизвестно: близкие получили сообщение без координат — так и пишем
   const locationKnown = sosSession?.hasLocation !== false;
   const notifiedDesktop = locationKnown
@@ -385,9 +387,9 @@ export default function SosSentPage({
               Отменить сигнал SOS?
             </h2>
             <p className="app-modal__text">
-              {nobodyNotified
+              {deliveredCount === 0
                 ? 'Сигнал будет завершён.'
-                : `Близким (${recipients.length}) сразу уйдёт сообщение, что вы в безопасности.`}
+                : `Близким (${deliveredCount}) сразу уйдёт сообщение, что вы в безопасности.`}
             </p>
             <div className="app-modal__actions">
               <button

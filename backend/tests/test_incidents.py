@@ -1,5 +1,6 @@
 import asyncio
 import io
+import time
 
 import pytest
 from httpx import AsyncClient
@@ -8,6 +9,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Incident, IncidentPhoto
+from app.services import media
 from app.services.media import MAX_PHOTO_BYTES
 from tests.conftest import Headers, LoginAs
 
@@ -490,6 +492,10 @@ async def test_hidden_incident_photos_are_not_public(
     assert (await client.get(public_url)).status_code == 404
     assert (await client.get(public_url + "?key=0000")).status_code == 404
     assert (await client.get(signed_url)).status_code == 200
+    # Старая ссылка (подписана двое суток назад) уже не работает
+    file_path = public_url.removeprefix("/media/")
+    expired = media.sign(file_path, now=time.time() - 2 * 86400)
+    assert (await client.get(f"{public_url}?key={expired}")).status_code == 404
     moderation = await client.get("/api/moderation/incidents", headers=moderator)
     moderator_url = moderation.json()[0]["photos"][0]["url"]
     assert (await client.get(moderator_url)).status_code == 200

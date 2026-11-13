@@ -104,6 +104,23 @@ function SelectionCard({ item, now, onClose }) {
         )}
       </div>
 
+      {item.description && <p className="map-card__description">{item.description}</p>}
+      {item.photos?.length > 0 && (
+        <ul className="map-card__photos" aria-label="Фото к метке">
+          {item.photos.map((photo, index) => (
+            <li key={photo.id}>
+              <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={photo.url}
+                  alt={`Фото ${index + 1} к метке «${item.title}»`}
+                  loading="lazy"
+                />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="map-card__actions">
         {item.phone && (
           <a
@@ -111,7 +128,13 @@ function SelectionCard({ item, now, onClose }) {
             className={`map-card__btn ${isSos ? 'map-card__btn--danger' : 'map-card__btn--primary'}`}
           >
             <Phone size={16} strokeWidth={2.2} aria-hidden="true" />
-            <span>{isSos ? `Позвонить ${item.displayPhone || ''}` : 'Позвонить'}</span>
+            <span>
+              {isSos
+                ? `Позвонить ${item.displayPhone || ''}`
+                : item.phone === '112'
+                  ? 'Позвонить 112'
+                  : 'Позвонить'}
+            </span>
           </a>
         )}
         {hasPoint(item) && (

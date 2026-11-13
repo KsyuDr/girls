@@ -38,8 +38,11 @@ async def get_alert(session: AsyncSession, alert_id: int, viewer: User | None) -
 
 async def create_alert(session: AsyncSession, author: User | None, data: AlertCreateIn) -> Alert:
     alert = Alert(
-        **data.model_dump(exclude={"location_label"}),
+        **data.model_dump(exclude={"location_label", *CLEARABLE}),
         location_label=data.location_label or DEFAULT_LOCATION,
+        # Пустая строка и null значат одно и то же — храним null (как в PATCH)
+        subtitle=data.subtitle or None,
+        source_label=data.source_label or None,
         author_id=author.id if author else None,
     )
     session.add(alert)

@@ -46,23 +46,19 @@ afterEach(() => {
 });
 
 describe('вход', () => {
-  it('registerUser: 409 («номер уже есть») превращается во вход по коду', async () => {
+  it('registerUser: 409 («номер уже есть») не превращается во вход молча', async () => {
     const api = await loadApi();
-    responses = [
-      reply(409, { detail: 'Этот номер уже зарегистрирован' }),
-      reply(200, { step: 2, phone: '+79120000001' }),
-    ];
+    responses = [reply(409, { detail: 'Этот номер уже зарегистрирован' })];
 
-    const result = await api.registerUser({
-      name: 'Полина Исупова',
-      phone: '+79120000001',
-      city: 'Москва',
-      geolocationEnabled: true,
-    });
-
-    expect(calls.map((c) => c.url)).toEqual(['/auth/register', '/auth/login']);
-    expect(JSON.parse(calls[1].body)).toEqual({ phone: '+79120000001' });
-    expect(result.step).toBe(2);
+    await expect(
+      api.registerUser({
+        name: 'Полина Исупова',
+        phone: '+79120000001',
+        city: 'Москва',
+        geolocationEnabled: true,
+      })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(calls.map((c) => c.url)).toEqual(['/auth/register']);
   });
 
   it('registerUser: другие ошибки (429) не маскируются и несут текст сервера', async () => {

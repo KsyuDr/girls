@@ -26,6 +26,8 @@ async def get_media(
     session: SessionDep,
     key: Annotated[str | None, Query(description="Подпись из photos[].url")] = None,
 ) -> FileResponse:
+    if "\x00" in file_path:  # PostgreSQL не примет NUL в параметре запроса
+        raise NotFoundError("Файл не найден")
     # Путь ищем в базе как есть: произвольный файл с диска (../) так не получить
     row = (
         await session.execute(

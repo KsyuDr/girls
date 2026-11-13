@@ -140,3 +140,17 @@
     justify-content: center;
   }
 }
+
+/* Отбой: сигнал близкого завершён — спокойный цвет, без пульсации */
+.incoming-sos--calm {
+  background-color: var(--color-primary);
+}
+
+.incoming-sos__row--calm {
+  background-color: var(--color-primary);
+}
+
+.incoming-sos__row--calm .incoming-sos__icon {
+  animation: none;
+  color: var(--color-accent);
+}

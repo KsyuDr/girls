@@ -1,12 +1,14 @@
 import asyncio
 import logging
+from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import SosSignal
+from app.services import sms
 from tests.conftest import Headers, LoginAs
 
 WHERE = {"lat": 55.7539, "lng": 37.6208, "address": "Красная площадь", "accuracyMeters": 8}
@@ -378,7 +380,9 @@ async def test_incoming_sos_visible_to_contact_by_phone(
     assert [s["id"] for s in dashboard["incomingSos"]] == [sent["id"]]
 
 
-async def test_incoming_sos_disappears_after_cancel(client: AsyncClient, login_as: LoginAs) -> None:
+async def test_incoming_sos_shows_cancel_then_disappears(
+    client: AsyncClient, login_as: LoginAs, db: AsyncSession
+) -> None:
     sender = await login_as("+79120000001")
     await add_contact(client, sender, "+79220000001")
     mom = await login_as("+79220000001", "Мария Исупова")
@@ -386,7 +390,35 @@ async def test_incoming_sos_disappears_after_cancel(client: AsyncClient, login_a
 
     assert len((await client.get("/api/sos/incoming", headers=mom)).json()) == 1
     assert (await client.post("/api/sos/active/cancel", headers=sender)).status_code == 200
+    # Близкий видит отбой, а не просто пропавший баннер
+    [incoming] = (await client.get("/api/sos/incoming", headers=mom)).json()
+    assert incoming["status"] == "cancelled" and incoming["endedAt"] is not None
+
+    # Через час завершённый сигнал из входящих уходит
+    await db.execute(update(SosSignal).values(ended_at=func.now() - timedelta(hours=1, minutes=1)))
+    await db.commit()
     assert (await client.get("/api/sos/incoming", headers=mom)).json() == []
+
+
+async def test_resolved_sos_notifies_contacts(
+    client: AsyncClient, login_as: LoginAs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sender = await login_as("+79120000001")
+    await add_contact(client, sender, "+79220000001")
+    mom = await login_as("+79220000001", "Мария Исупова")
+    moderator = await login_as("+79120000003", "Модератор Строгий", role="moderator")
+    sos = (await client.post("/api/sos", headers=sender, json=WHERE)).json()
+    resolved: list[str] = []
+
+    async def send_resolved(phone: str, *_: object) -> None:
+        resolved.append(phone)
+
+    monkeypatch.setattr(sms, "send_sos_resolved", send_resolved)
+    url = f"/api/moderation/sos/{sos['id']}/resolve"
+    assert (await client.post(url, headers=moderator)).status_code == 200
+    assert resolved == ["+79220000001"]
+    [incoming] = (await client.get("/api/sos/incoming", headers=mom)).json()
+    assert incoming["status"] == "resolved"
 
 
 async def test_incoming_sos_survives_contact_deletion(

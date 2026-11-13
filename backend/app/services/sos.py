@@ -1,17 +1,19 @@
 """SOS: отправка сигнала близким (в MVP доставка имитируется), отмена, завершение модератором."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.errors import ConflictError, NotFoundError
 from app.models import EmergencyContact, SosDelivery, SosSignal, User
 from app.models.sos import (
     DELIVERY_DELIVERED,
     DELIVERY_FAILED,
+    DELIVERY_SENDING,
     SOS_ACTIVE,
     SOS_CANCELLED,
     SOS_RESOLVED,
@@ -25,9 +27,13 @@ from app.schemas.sos import (
     SosOut,
 )
 from app.services import sms
+from app.services.contacts import lock_user
 from app.services.incidents import person_out
 
 STATUS_LABELS = {SOS_ACTIVE: "активен", SOS_CANCELLED: "отменён", SOS_RESOLVED: "помощь пришла"}
+ONE_ACTIVE_INDEX = "uq_sos_signals_one_active_per_user"
+# Сколько близкий видит завершённый сигнал (отбой) в приложении
+INCOMING_FINISHED_FOR = timedelta(hours=1)
 
 
 def with_details(query: Select) -> Select:
@@ -60,6 +66,9 @@ async def send_sos(session: AsyncSession, user: User, data: SosCreateIn) -> tupl
     user_id = (
         user.id
     )  # после rollback атрибуты user устаревают, а ленивая загрузка в async — ошибка
+    # Строка пользователя заблокирована до коммита: параллельные изменение и удаление контакта
+    # ждут (они берут ту же блокировку), и доставка не сошлётся на удалённый контакт.
+    await lock_user(session, user_id)
     _remember_location(user, data)
 
     active = await get_active(session, user_id)
@@ -93,43 +102,136 @@ async def send_sos(session: AsyncSession, user: User, data: SosCreateIn) -> tupl
     session.add(sos)
     try:
         await session.commit()
-    except IntegrityError:  # параллельное нажатие уже создало активный сигнал
+    except IntegrityError as exc:
+        # Под блокировкой пользователя второй активный сигнал почти невозможен, но если
+        # уникальный индекс всё же сработал — это параллельное нажатие, а не ошибка.
         await session.rollback()
         active = await get_active(session, user_id)
-        if active is None:
+        if active is None or ONE_ACTIVE_INDEX not in str(exc.orig):
             raise
-        # Как при повторном нажатии: обновляем место уже созданного сигнала
         await session.refresh(user)
         _remember_location(user, data)
         _update_location(active, data)
         await session.commit()
         return await get_sos(session, active.id), False
 
-    # Имитация доставки: мок-SMS пишет в лог и сразу «доставляет»
-    for delivery in sos.deliveries:
-        ok = await sms.send_sos(delivery.contact_phone, user_id, sos.lat, sos.lng)
-        delivery.status = DELIVERY_DELIVERED if ok else DELIVERY_FAILED
-    await session.commit()
+    await _deliver(session, sos.id, user_id)
     return await get_sos(session, sos.id), True
 
 
+async def _deliver(session: AsyncSession, sos_id: int, user_id: int) -> None:
+    """Рассылка SOS близким по одному.
+
+    Перед каждой SMS строка сигнала блокируется и проверяется статус: отмена или «помощь
+    пришла» ждут, пока текущая SMS уйдёт и запишется как доставленная, — поэтому отбой
+    получат все, кому SOS ушёл, а после отмены новые SMS не уходят.
+    Сверх лимита (см. _sms_allowed) SMS не отправляется: сигнал всё равно создан, его видят
+    модераторы и близкие в приложении.
+    """
+    delivery_ids = (
+        await session.scalars(
+            select(SosDelivery.id).where(SosDelivery.sos_id == sos_id).order_by(SosDelivery.id)
+        )
+    ).all()
+    allowed = await _sms_allowed(session, sos_id, user_id)
+    for delivery_id in delivery_ids:
+        row = (
+            await session.execute(
+                select(SosSignal.status, SosSignal.lat, SosSignal.lng)
+                .where(SosSignal.id == sos_id)
+                .with_for_update()
+            )
+        ).one()
+        delivery = await session.get(SosDelivery, delivery_id, populate_existing=True)
+        if delivery is None or delivery.status != DELIVERY_SENDING:
+            await session.commit()
+            continue
+        if row.status != SOS_ACTIVE or delivery.contact_phone not in allowed:
+            delivery.status = DELIVERY_FAILED  # не отправлено: сигнал завершён или лимит
+        else:
+            ok = await sms.send_sos(delivery.contact_phone, user_id, row.lat, row.lng)
+            delivery.status = DELIVERY_DELIVERED if ok else DELIVERY_FAILED
+        await session.commit()  # снимает блокировку сигнала
+
+
+async def _sms_allowed(session: AsyncSession, sos_id: int, user_id: int) -> set[str]:
+    """Номера, на которые можно отправить SMS по этому сигналу.
+
+    Защита от SMS-бомбинга чужих номеров за счёт проекта: не больше N сигналов с SMS в час
+    и не больше M разных номеров в сутки (менять контакты и слать на новые номера нельзя
+    бесконечно). Номера, которым SMS уже уходили за сутки, лимит номеров не тратят.
+    """
+    settings = get_settings()
+    now = func.clock_timestamp()
+    signals = await session.scalar(
+        select(func.count())
+        .select_from(SosSignal)
+        .where(
+            SosSignal.user_id == user_id,
+            SosSignal.id != sos_id,
+            SosSignal.created_at >= now - timedelta(hours=1),
+        )
+    )
+    if (signals or 0) >= settings.sos_with_sms_per_hour:
+        return set()
+    recent = set(
+        (
+            await session.scalars(
+                select(SosDelivery.contact_phone)
+                .join(SosSignal, SosSignal.id == SosDelivery.sos_id)
+                .where(
+                    SosSignal.user_id == user_id,
+                    SosSignal.id != sos_id,
+                    SosDelivery.status == DELIVERY_DELIVERED,
+                    SosDelivery.created_at >= now - timedelta(days=1),
+                )
+                .distinct()
+            )
+        ).all()
+    )
+    phones = (
+        await session.scalars(
+            select(SosDelivery.contact_phone)
+            .where(SosDelivery.sos_id == sos_id)
+            .order_by(SosDelivery.id)
+        )
+    ).all()
+    allowed = set()
+    for phone in phones:
+        if phone in recent:
+            allowed.add(phone)
+        elif len(recent) < settings.sos_sms_numbers_per_day:
+            recent.add(phone)
+            allowed.add(phone)
+    return allowed
+
+
 async def list_incoming(session: AsyncSession, user: User) -> list[IncomingSosOut]:
-    """Активные SOS, доставленные на номер пользователя (он — чей-то экстренный контакт).
+    """SOS, доставленные на номер пользователя (он — чей-то экстренный контакт): активные
+    и завершённые за последний час — чтобы близкий увидел «отменён» или «помощь пришла»,
+    а не просто пропавший баннер.
 
     Связь — по номеру из доставки, а не по контакту: контакт могли удалить после отправки,
-    а сигнал уже ушёл. Свои сигналы не показываем. Новые сверху.
+    а сигнал уже ушёл. Свои сигналы не показываем. Активные и новые сверху.
     """
     rows = await session.execute(
         select(SosSignal, SosDelivery.contact_relation)
         .join(SosDelivery, SosDelivery.sos_id == SosSignal.id)
         .where(
-            SosSignal.status == SOS_ACTIVE,
+            or_(
+                SosSignal.status == SOS_ACTIVE,
+                SosSignal.ended_at >= func.clock_timestamp() - INCOMING_FINISHED_FOR,
+            ),
             SosSignal.user_id != user.id,
             SosDelivery.contact_phone == user.phone,
             SosDelivery.status == DELIVERY_DELIVERED,
         )
         .options(selectinload(SosSignal.user))
-        .order_by(SosSignal.created_at.desc(), SosSignal.id.desc())
+        .order_by(
+            (SosSignal.status == SOS_ACTIVE).desc(),
+            SosSignal.created_at.desc(),
+            SosSignal.id.desc(),
+        )
     )
     seen: set[int] = set()
     result = []
@@ -146,6 +248,7 @@ async def list_incoming(session: AsyncSession, user: User) -> list[IncomingSosOu
                 address=sos.address,
                 accuracy_meters=sos.accuracy_m,
                 started_at=sos.created_at,
+                ended_at=sos.ended_at,
                 sender=person_out(sos.user, with_phone=True, full_name=True),
                 relation=relation,
             )
@@ -207,8 +310,10 @@ async def finish(session: AsyncSession, sos: SosSignal, status: str) -> None:
     """Завершает активный сигнал (отмена пользователем или закрытие модератором).
 
     Условный UPDATE: из двух одновременных завершений (отмена и «помощь пришла»)
-    срабатывает ровно одно, второе получает 409. SMS «отбой» уходит, только если
-    сигнал отменила именно эта операция.
+    срабатывает ровно одно, второе получает 409. Отбой («отменён» или «помощь пришла»)
+    уходит, только если сигнал завершила именно эта операция, — всем, кому SOS доставлен.
+    Если идёт рассылка, UPDATE ждёт блокировку строки (см. _deliver), поэтому список
+    доставленных читаем после него.
     """
     finished = await session.scalar(
         update(SosSignal)
@@ -219,10 +324,16 @@ async def finish(session: AsyncSession, sos: SosSignal, status: str) -> None:
     await session.commit()
     if finished is None:
         raise ConflictError("Сигнал SOS уже завершён")
-    if status == SOS_CANCELLED:
-        for delivery in sos.deliveries:
-            if delivery.status == DELIVERY_DELIVERED:
-                await sms.send_sos_cancelled(delivery.contact_phone, sos.user_id)
+    phones = (
+        await session.scalars(
+            select(SosDelivery.contact_phone)
+            .where(SosDelivery.sos_id == sos.id, SosDelivery.status == DELIVERY_DELIVERED)
+            .order_by(SosDelivery.id)
+        )
+    ).all()
+    notify = sms.send_sos_cancelled if status == SOS_CANCELLED else sms.send_sos_resolved
+    for phone in phones:
+        await notify(phone, sos.user_id)
 
 
 def _remember_location(user: User, data: SosCreateIn | SosLocationIn) -> None:

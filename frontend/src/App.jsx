@@ -122,6 +122,11 @@ function App() {
   const [connectionError, setConnectionError] = useState('');
   const [notice, setNotice] = useState(null); // {text, type: 'info' | 'error'}
   const [sosConfirmOpen, setSosConfirmOpen] = useState(false);
+  // «Добавить контакт» на главной открывает раздел «Контакты» сразу с окном добавления
+  const [contactsAutoAdd, setContactsAutoAdd] = useState(false);
+  // SOS не ушёл (нет сети, ошибка сервера): окно с «Повторить» и 112 не исчезает само
+  const [sosFailure, setSosFailure] = useState('');
+  const [sosSending, setSosSending] = useState(false);
 
   // Актуальные значения для таймеров и ответов, пришедших позже
   const pageRef = useRef(currentPage);
@@ -276,7 +281,7 @@ function App() {
     if (!USE_MOCK) loadDashboard({ silent: true }).catch((error) => console.error(error));
   };
 
-  const handleNavigate = (page) => {
+  const handleNavigate = (page, options) => {
     if (page === 'sos-sent' || page === 'sos') {
       setCurrentPage('sos');
       return;
@@ -291,6 +296,7 @@ function App() {
       return;
     }
     if (page !== 'map') setMapFocus(null);
+    if (page === 'contacts') setContactsAutoAdd(Boolean(options?.openAdd));
     setCurrentPage(page);
   };
 
@@ -324,13 +330,16 @@ function App() {
   const handleTriggerSos = async () => {
     setSosConfirmOpen(false);
     if (sosRef.current) {
+      setSosFailure('');
       setCurrentPage('sos');
       return;
     }
     if (!isAuthenticated) {
+      setSosFailure('');
       handleRequestSos();
       return;
     }
+    setSosSending(true);
     try {
       const session = await sendSosSignal(
         {
@@ -344,27 +353,38 @@ function App() {
         }
       );
       startSosSession(session);
+      setSosFailure('');
+      setNotice(null); // старое «нет связи» не должно висеть поверх экрана SOS
       setCurrentPage('sos');
     } catch (error) {
+      setSosFailure('');
       if (redirectIfUnauthorized(error)) return;
-      notify(`${error?.message || 'Не удалось отправить SOS'}. Позвоните 112`, 'error');
+      setSosFailure(error?.message || 'Не удалось отправить SOS');
+    } finally {
+      setSosSending(false);
     }
   };
 
   // Ошибку отмены не глотаем: экран SOS остаётся, пока сервер не подтвердит отмену
   const handleCancelSos = async () => {
+    const id = sosSession?.id;
+    let endedBefore = false;
     try {
-      if (sosSession?.id) {
-        await cancelSosSignal(sosSession.id);
-      }
+      if (id) await cancelSosSignal(id);
     } catch (error) {
       if (redirectIfUnauthorized(error)) return;
       // 404/409 — сигнал уже завершён на сервере, отменять нечего
       if (error?.status !== 404 && error?.status !== 409) throw error;
+      endedBefore = true;
     }
     bumpEpoch();
     setSosSession(null);
     setCurrentPage('home');
+    if (endedBefore && id) {
+      // Не закрываем экран молча: скажем, кто и как завершил сигнал раньше
+      const sos = await getSosSignal(id).catch(() => null);
+      notify(SOS_END_MESSAGES[sos?.status] || 'Сигнал SOS уже завершён');
+    }
   };
 
   // ---------- контакты и профиль ----------
@@ -608,6 +628,8 @@ function App() {
               onToggleContactSos={handleToggleContactSos}
               onAddContact={handleAddContact}
               onDeleteContact={handleDeleteContact}
+              autoOpenAdd={contactsAutoAdd}
+              onAutoOpenDone={() => setContactsAutoAdd(false)}
             />
           )}
 
@@ -642,7 +664,9 @@ function App() {
               center={dashboard.mapCenter}
               focus={mapFocus}
               sosPoints={[
-                ...dashboard.incomingSos.map((s) => ({ ...s, kind: 'incoming' })),
+                ...dashboard.incomingSos
+                  .filter((s) => s.isActive)
+                  .map((s) => ({ ...s, kind: 'incoming' })),
                 ...(canModerate
                   ? dashboard.operatorSos.map((s) => ({ ...s, kind: 'moderation' }))
                   : []),
@@ -683,6 +707,45 @@ function App() {
               onNavigate={handleNavigate}
             />
           )}
+
+          <Modal
+            open={Boolean(sosFailure)}
+            onClose={() => setSosFailure('')}
+            role="alertdialog"
+            labelledBy="sos-failure-title"
+            className="app-modal__card"
+          >
+            <div className="app-modal__icon" aria-hidden="true">
+              <Siren size={26} strokeWidth={2.2} />
+            </div>
+            <h2 id="sos-failure-title" className="app-modal__title">
+              Сигнал SOS не отправлен
+            </h2>
+            <p className="app-modal__text app-modal__text--warn">
+              {sosFailure}. Близкие ничего не получили. Если вы в опасности — звоните 112, а сигнал
+              попробуйте отправить ещё раз.
+            </p>
+            <div className="app-modal__actions">
+              <a className="app-modal__btn app-modal__btn--danger" href="tel:112" data-autofocus>
+                Позвонить 112
+              </a>
+              <button
+                type="button"
+                className="app-modal__btn"
+                disabled={sosSending}
+                onClick={handleTriggerSos}
+              >
+                {sosSending ? 'Отправляем…' : 'Повторить отправку SOS'}
+              </button>
+              <button
+                type="button"
+                className="app-modal__btn app-modal__btn--ghost"
+                onClick={() => setSosFailure('')}
+              >
+                Закрыть
+              </button>
+            </div>
+          </Modal>
 
           <Modal
             open={sosConfirmOpen}

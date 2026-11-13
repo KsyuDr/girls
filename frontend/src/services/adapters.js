@@ -6,6 +6,18 @@
 
 const AVATAR_PALETTE = ['#007DA5', '#003C54', '#008F82', '#00C9B7'];
 
+// Фото меток раздаёт тот же сервер, что и API, но от корня: /media/... (без /api)
+const SERVER_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(
+  /\/api\/?$/,
+  ''
+);
+
+/** Путь фото из ответа сервера (/media/incidents/…) → полный адрес. */
+export function mediaUrl(path) {
+  if (!path) return '';
+  return /^https?:\/\//.test(path) ? path : `${SERVER_ORIGIN}${path}`;
+}
+
 export const ALERT_LEVEL_CONFIG = {
   critical: {
     badgeText: 'Критическое',
@@ -402,7 +414,10 @@ export function adaptIncidentAsPlace(incident, typesById, project) {
     iconBg: PLACE_STYLES.danger.iconBg,
     iconColor: PLACE_STYLES.danger.iconColor,
     pinColor: PIN_COLORS.danger,
+    // Телефон автора метки жителям не показываем: из карточки — звонок в 112
     phone: '112',
+    description: incident.description,
+    photos: (incident.photos || []).map((p) => ({ id: p.id, url: mediaUrl(p.url) })),
     hasDangerZone: false,
     badgeText: 'Опасно',
     badgeBg: '#FDE7EC',
@@ -506,6 +521,10 @@ export function adaptIncomingSos(sos) {
     hasPoint,
     accuracyMeters: sos.accuracyMeters,
     startedAt: Date.parse(sos.startedAt),
+    // Завершённый за последний час сигнал: близкий видит «отменён» или «помощь пришла»
+    status: sos.status || 'active',
+    isActive: (sos.status || 'active') === 'active',
+    endedAt: sos.endedAt ? Date.parse(sos.endedAt) : null,
   };
 }
 

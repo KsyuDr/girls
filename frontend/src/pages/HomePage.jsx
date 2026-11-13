@@ -479,7 +479,7 @@ export default function HomePage({
             </div>
             <button
               type="button"
-              onClick={() => onNavigate?.('contacts')}
+              onClick={() => onNavigate?.('contacts', { openAdd: true })}
               className="home-contacts-add-btn"
             >
               <Plus size={18} color="#007DA5" strokeWidth={2.2} aria-hidden="true" />

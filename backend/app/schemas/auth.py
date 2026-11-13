@@ -5,7 +5,7 @@ from pydantic import AfterValidator, Field, StringConstraints, model_validator
 
 from app.core.phone import normalize_phone
 from app.reference import CITIES
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, InputModel
 
 
 def _check_city(value: str) -> str:
@@ -21,18 +21,18 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max
 City = Annotated[str, Field(min_length=2, max_length=60), AfterValidator(_check_city)]
 
 
-class RegisterIn(CamelModel):
+class RegisterIn(InputModel):
     name: Name
     phone: Phone
     city: City
     geolocation_enabled: bool = True
 
 
-class LoginIn(CamelModel):
+class LoginIn(InputModel):
     phone: Phone
 
 
-class VerifyIn(CamelModel):
+class VerifyIn(InputModel):
     phone: Phone
     code: Annotated[str, Field(pattern=r"^\d{4,6}$")]
 
@@ -64,7 +64,7 @@ class TokenOut(CamelModel):
     user: UserOut
 
 
-class UserUpdateIn(CamelModel):
+class UserUpdateIn(InputModel):
     name: Name | None = None
     city: City | None = None
     geolocation_enabled: bool | None = None
@@ -82,5 +82,5 @@ class UserUpdateIn(CamelModel):
         return self
 
 
-class NotificationsIn(CamelModel):
+class NotificationsIn(InputModel):
     push_notifications_enabled: bool

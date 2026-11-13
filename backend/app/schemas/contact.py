@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, ConfigDict, Field
 
 from app.core.phone import normalize_phone
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, InputModel
 
 DEFAULT_RELATION = "Близкий"
 
@@ -14,7 +14,7 @@ ContactPhone = Annotated[str, AfterValidator(normalize_phone)]
 Relation = Annotated[str, Field(max_length=50)]
 
 
-class _ContactIn(CamelModel):
+class _ContactIn(InputModel):
     # Пробелы по краям обрезаются до проверки длины
     model_config = ConfigDict(str_strip_whitespace=True)
 

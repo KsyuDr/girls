@@ -5,12 +5,13 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.router import api_router
 from app.api.routes import media
 from app.core.config import get_settings
 from app.core.middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
-from app.core.validation import validation_error_handler
+from app.core.validation import http_error_handler, validation_error_handler
 
 # В dev фронт может подняться на любом порту localhost (Vite берёт :5174, если :5173 занят)
 DEV_ORIGIN_REGEX = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(StarletteHTTPException, http_error_handler)
 
     # Порядок: последний добавленный — внешний. CORS снаружи, чтобы и 413 ушёл с его заголовками
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)

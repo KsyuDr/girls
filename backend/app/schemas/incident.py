@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Self
 from pydantic import AfterValidator, ConfigDict, Field, model_validator
 
 from app.reference import INCIDENT_TYPE_IDS
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, InputModel
 
 IncidentStatus = Literal["new", "in_progress", "closed", "hidden"]
 PublicStatus = Literal["new", "in_progress", "closed"]
@@ -24,7 +24,7 @@ Lat = Annotated[float, Field(ge=-90, le=90)]
 Lng = Annotated[float, Field(ge=-180, le=180)]
 
 
-class _In(CamelModel):
+class _In(InputModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
 

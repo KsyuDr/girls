@@ -10,8 +10,10 @@ from typing import Any
 
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 FIELD_LABELS = {
     "name": "Имя",
@@ -113,6 +115,8 @@ def _field(loc: Sequence[str | int]) -> str | None:
     names = [part for part in loc[1:] if isinstance(part, str)]
     if not names:
         return None
+    if names[-1].endswith("_id"):
+        return "Номер"  # id в пути: incident_id, sos_id, ...
     return FIELD_LABELS.get(names[-1], names[-1])
 
 
@@ -137,3 +141,15 @@ async def validation_error_handler(request: Request, exc: Exception) -> JSONResp
         {"type": e.get("type"), "loc": e.get("loc"), "msg": translate(e)} for e in exc.errors()
     ]
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(detail)})
+
+
+BODY_PARSE_ERROR = "There was an error parsing the body"
+
+
+async def http_error_handler(request: Request, exc: Exception) -> Response:
+    """Стандартный ответ FastAPI, только английский текст разбора тела — по-русски
+    (например, слишком глубоко вложенный JSON)."""
+    assert isinstance(exc, StarletteHTTPException)
+    if exc.detail == BODY_PARSE_ERROR:
+        exc = StarletteHTTPException(exc.status_code, "Не удалось разобрать тело запроса")
+    return await http_exception_handler(request, exc)

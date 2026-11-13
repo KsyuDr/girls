@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
-from app.api.deps import CurrentUser, OptionalUser
+from app.api.deps import CurrentUser, Id, OptionalUser
 from app.core.errors import BadRequestError, UnauthorizedError
 from app.db.session import SessionDep
 from app.schemas.incident import (
@@ -65,7 +65,7 @@ async def list_incidents(
 
 @router.get("/{incident_id}", response_model=IncidentOut, summary="Одна метка")
 async def get_incident(
-    incident_id: int,
+    incident_id: Id,
     session: SessionDep,
     viewer: OptionalUser,
     lat: Lat = None,
@@ -100,7 +100,7 @@ async def create_incident(
     summary="Приложить фото (до 4 на метку, JPG/PNG/WebP, до 5 МБ)",
 )
 async def upload_photos(
-    incident_id: int,
+    incident_id: Id,
     files: Annotated[list[UploadFile], File(description="Поле files, можно несколько")],
     user: CurrentUser,
     session: SessionDep,
@@ -115,7 +115,7 @@ async def upload_photos(
     summary="Автор правит описание/адрес или закрывает метку",
 )
 async def update_incident(
-    incident_id: int, data: IncidentUpdateIn, user: CurrentUser, session: SessionDep
+    incident_id: Id, data: IncidentUpdateIn, user: CurrentUser, session: SessionDep
 ) -> IncidentOut:
     incident = await service.update_incident(session, user, incident_id, data)
     return service.incident_out(incident, user)
@@ -128,7 +128,7 @@ async def update_incident(
     summary="Откликнуться «Помогу» / «Нашёл»",
 )
 async def respond(
-    incident_id: int,
+    incident_id: Id,
     user: CurrentUser,
     session: SessionDep,
     data: ResponseCreateIn | None = None,
@@ -142,6 +142,6 @@ async def respond(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Отменить свой отклик",
 )
-async def cancel_response(incident_id: int, user: CurrentUser, session: SessionDep) -> Response:
+async def cancel_response(incident_id: Id, user: CurrentUser, session: SessionDep) -> Response:
     await service.cancel_response(session, user, incident_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

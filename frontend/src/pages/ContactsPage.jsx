@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Bell,
   Siren,
@@ -21,6 +21,8 @@ export default function ContactsPage({
   onToggleContactSos,
   onAddContact,
   onDeleteContact,
+  autoOpenAdd = false, // пришли с главной по «Добавить контакт» — сразу открыть окно
+  onAutoOpenDone,
 }) {
   const dialogRef = useRef(null);
   const [newName, setNewName] = useState('');
@@ -43,6 +45,14 @@ export default function ContactsPage({
     setAddError('');
     dialogRef.current?.showModal();
   };
+
+  useEffect(() => {
+    if (!autoOpenAdd) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- одноразовое открытие окна по переходу с главной
+    openAddDialog();
+    onAutoOpenDone?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только при переходе на страницу
+  }, [autoOpenAdd]);
 
   const closeAddDialog = () => {
     dialogRef.current?.close();

@@ -24,7 +24,7 @@ async def list_contacts(session: AsyncSession, user_id: int) -> Sequence[Emergen
 async def create_contact(
     session: AsyncSession, user: User, data: ContactCreateIn
 ) -> EmergencyContact:
-    await _lock_user(session, user.id)
+    await lock_user(session, user.id)
     contacts = await list_contacts(session, user.id)
     if len(contacts) >= MAX_CONTACTS:
         raise ConflictError(f"Можно добавить не больше {MAX_CONTACTS} контактов")
@@ -40,8 +40,9 @@ async def create_contact(
         position=max((c.position for c in contacts), default=-1) + 1,
     )
     session.add(contact)
+    await session.flush()
+    await session.refresh(contact)  # до коммита: см. update_contact
     await session.commit()
-    await session.refresh(contact)
     return contact
 
 
@@ -49,8 +50,7 @@ async def update_contact(
     session: AsyncSession, user: User, contact_id: int, data: ContactUpdateIn
 ) -> EmergencyContact:
     changes = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
-    if "phone" in changes:
-        await _lock_user(session, user.id)
+    await lock_user(session, user.id)
     contact = await _get_own(session, user.id, contact_id)
 
     if "phone" in changes and changes["phone"] != contact.phone:
@@ -61,27 +61,36 @@ async def update_contact(
 
     for field, value in changes.items():
         setattr(contact, field, value)
-    await session.commit()
+    # Перечитываем до коммита, пока строка пользователя заблокирована: после коммита
+    # параллельный DELETE мог бы удалить контакт, и refresh упал бы (было 500)
+    await session.flush()
     await session.refresh(contact)
+    await session.commit()
     return contact
 
 
 async def delete_contact(session: AsyncSession, user: User, contact_id: int) -> None:
+    await lock_user(session, user.id)
     contact = await _get_own(session, user.id, contact_id)
     await session.delete(contact)
     await session.commit()
 
 
 async def _get_own(session: AsyncSession, user_id: int, contact_id: int) -> EmergencyContact:
-    """Чужой контакт для пользователя не существует — отвечаем 404, а не 403."""
-    contact = await session.get(EmergencyContact, contact_id)
+    """Чужой контакт для пользователя не существует — отвечаем 404, а не 403.
+
+    Вызывать под lock_user: изменение, удаление контакта и отправка SOS идут по очереди,
+    поэтому контакт не исчезнет между чтением и записью.
+    """
+    contact = await session.get(EmergencyContact, contact_id, populate_existing=True)
     if contact is None or contact.user_id != user_id:
         raise NotFoundError("Контакт не найден")
     return contact
 
 
-async def _lock_user(session: AsyncSession, user_id: int) -> None:
-    """Блокируем строку пользователя до коммита: два параллельных запроса не обойдут лимит."""
+async def lock_user(session: AsyncSession, user_id: int) -> None:
+    """Блокируем строку пользователя до коммита: два параллельных запроса не обойдут лимит,
+    а SOS не возьмёт контакт, который в этот момент удаляют (см. services/sos.py)."""
     await session.execute(select(User.id).where(User.id == user_id).with_for_update())
 
 

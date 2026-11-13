@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import ModeratorUser
+from app.api.deps import Id, ModeratorUser
 from app.db.session import SessionDep
 from app.schemas.incident import IncidentStatus, IncidentType, ModerationIncidentOut
 from app.schemas.moderation import ModerationIncidentUpdateIn, StatsOut
@@ -38,7 +38,7 @@ async def list_incidents(
     summary="Сменить статус метки (в том числе скрыть спам) и оставить заметку",
 )
 async def update_incident(
-    incident_id: int,
+    incident_id: Id,
     data: ModerationIncidentUpdateIn,
     moderator: ModeratorUser,
     session: SessionDep,
@@ -68,7 +68,7 @@ async def list_sos(
     summary="Отметить, что помощь пришла",
 )
 async def resolve_sos(
-    sos_id: int, moderator: ModeratorUser, session: SessionDep
+    sos_id: Id, moderator: ModeratorUser, session: SessionDep
 ) -> ModerationSosOut:
     return sos_service.moderation_sos_out(await service.resolve_sos(session, sos_id))
 
